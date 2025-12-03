@@ -48,6 +48,12 @@ resourceLogs:
               - key: postgresql.total_exec_time
                 value:
                   doubleValue: 1.2
+              - key: postgresql.procedure_id
+                value:
+                  stringValue: "0"
+              - key: postgresql.procedure_name
+                value:
+                  stringValue: ""
             body: {}
             eventName: db.server.query_sample
             timeUnixNano: "1758612388939691000"

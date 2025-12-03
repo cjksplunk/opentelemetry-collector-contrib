@@ -1,37 +1,78 @@
-SELECT   
-    COALESCE(datname, '') AS datname,
-    COALESCE(usename, '') AS usename,
-    COALESCE(client_addr::TEXT, '') AS client_addr,
-    COALESCE(client_hostname, '') AS client_hostname,
-    COALESCE(client_port::TEXT, '') AS client_port,
-    COALESCE(query_start::TEXT, '') AS query_start,
-    COALESCE(wait_event_type, '') AS wait_event_type,
-    COALESCE(wait_event, '') AS wait_event,
-    COALESCE(query_id::TEXT, '') AS query_id,
-    COALESCE(pid::TEXT, '') AS pid,
-    COALESCE(application_name::TEXT, '') AS application_name,
-    EXTRACT(EPOCH FROM query_start) AS _query_start_timestamp,
-    state,
-    query,
-    CASE
-    WHEN state = 'active' THEN
-        EXTRACT(EPOCH FROM (clock_timestamp() - query_start)) * 1e3
-    WHEN state IN ('idle','idle in transaction','idle in transaction (aborted)')
-        AND state_change IS NOT NULL THEN
-        EXTRACT(EPOCH FROM (state_change - query_start)) * 1e3
-    ELSE
-        NULL
-    END AS duration_ms
-FROM pg_stat_activity
-WHERE     
-    coalesce(
-      TRIM(query), 
-      ''
-    ) != ''
-    AND NOT (
-
-      query_start < TO_TIMESTAMP(123440.111)
-      AND state = 'idle'
-    )   
-LIMIT 30;
-
+WITH base AS (
+    SELECT
+        pid,
+        datname,
+        usename,
+        client_addr::text      AS client_addr,
+        client_hostname,
+        client_port,
+        query_start,
+        wait_event_type,
+        wait_event,
+        query_id,
+        application_name,
+        state,
+        query,
+        EXTRACT(EPOCH FROM query_start) AS _query_start_timestamp,
+        EXTRACT(EPOCH FROM (clock_timestamp() - query_start)) * 1e3 AS duration_ms,
+        -- Identify potential CALL statements and normalize the called name
+        CASE
+            WHEN UPPER(LTRIM(query)) LIKE 'CALL %' THEN
+                LOWER(
+                        split_part(
+                                regexp_replace(LTRIM(query), '^(?i:CALL)\s+', ''),
+                                '(',
+                                1
+                        )
+                )
+            ELSE NULL
+            END AS called_proc_name
+    FROM pg_stat_activity
+    WHERE
+        state = 'active'
+      AND COALESCE(TRIM(query), '') <> ''
+),
+     procs AS (
+         SELECT
+             p.oid                       AS proc_oid,
+             n.nspname                   AS proc_schema,
+             p.proname                   AS proc_name,
+             LOWER(p.proname)            AS proc_name_lower,
+             LOWER(n.nspname || '.' || p.proname) AS proc_qualified_lower
+         FROM pg_proc p
+                  JOIN pg_namespace n ON n.oid = p.pronamespace
+         WHERE p.prokind = 'p'   -- procedures only (not functions)
+     )
+SELECT
+    COALESCE(b.datname, '')              AS datname,
+    COALESCE(b.usename, '')              AS usename,
+    COALESCE(b.client_addr, '')          AS client_addr,
+    COALESCE(b.client_hostname, '')      AS client_hostname,
+    COALESCE(b.client_port::text, '')    AS client_port,
+    COALESCE(b.query_start::text, '')    AS query_start,
+    COALESCE(b.wait_event_type, '')      AS wait_event_type,
+    COALESCE(b.wait_event, '')           AS wait_event,
+    COALESCE(b.query_id::text, '')       AS query_id,
+    COALESCE(b.pid::text, '')            AS pid,
+    COALESCE(b.application_name, '')     AS application_name,
+    b._query_start_timestamp,
+    b.duration_ms,
+    COALESCE(b.state, '')                AS state,
+    COALESCE(b.query, '')                AS query,
+    -- Single column with schema.name if a procedure is identified
+    COALESCE(
+            CASE
+                WHEN p.proc_schema IS NOT NULL AND p.proc_name IS NOT NULL
+                    THEN p.proc_schema || '.' || p.proc_name
+                ELSE ''
+                END,
+            ''
+    ) AS procedure_name
+FROM base b
+         LEFT JOIN procs p
+                   ON b.called_proc_name IS NOT NULL
+                       AND (
+                          b.called_proc_name = p.proc_name_lower
+                              OR b.called_proc_name = p.proc_qualified_lower
+                          )
+    LIMIT 30;
