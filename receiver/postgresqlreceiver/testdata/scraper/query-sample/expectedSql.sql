@@ -59,7 +59,9 @@ SELECT
     b.duration_ms,
     COALESCE(b.state, '')                AS state,
     COALESCE(b.query, '')                AS query,
-    -- Single column with schema.name if a procedure is identified
+    -- New: procedure id (oid as text, empty string if none)
+    COALESCE(p.proc_oid::text, '')       AS procedure_id,
+    -- Existing: schema.name if a procedure is identified
     COALESCE(
             CASE
                 WHEN p.proc_schema IS NOT NULL AND p.proc_name IS NOT NULL

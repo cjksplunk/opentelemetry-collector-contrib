@@ -50,10 +50,10 @@ resourceLogs:
                   doubleValue: 1.2
               - key: postgresql.procedure_id
                 value:
-                  stringValue: "0"
+                  stringValue: "123"
               - key: postgresql.procedure_name
                 value:
-                  stringValue: ""
+                  stringValue: "imaprocedure"
             body: {}
             eventName: db.server.query_sample
             timeUnixNano: "1758612388939691000"
