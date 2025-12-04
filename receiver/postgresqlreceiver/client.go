@@ -951,6 +951,8 @@ func (c *postgreSQLClient) getQuerySamples(ctx context.Context, limit int64, new
 		currentAttributes["user.name"] = row["usename"]
 		currentAttributes["duration"] = duration
 		currentAttributes["db.system.name"] = "postgresql"
+		currentAttributes["procedure_id"] = row["procedure_id"]
+		currentAttributes["procedure_name"] = row["procedure_name"]
 		finalAttributes = append(finalAttributes, currentAttributes)
 	}
 
