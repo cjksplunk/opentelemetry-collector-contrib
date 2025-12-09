@@ -20,7 +20,7 @@ WITH base AS (
             WHEN UPPER(LTRIM(query)) LIKE 'CALL %' THEN
                 LOWER(
                         split_part(
-                                regexp_replace(LTRIM(query), '^(?i:CALL)\s+', ''),
+                                regexp_replace(LTRIM(query), '^CALL\s+', '', 'i'),
                                 '(',
                                 1
                         )
@@ -39,7 +39,7 @@ WITH base AS (
              LOWER(n.nspname || '.' || p.proname) AS proc_qualified_lower
          FROM pg_proc p
                   JOIN pg_namespace n ON n.oid = p.pronamespace
-         WHERE p.prokind = 'p'   -- procedures only (not functions)
+         -- WHERE p.prokind = 'p'   -- procedures only (not functions)
      )
 SELECT
     COALESCE(b.datname, '')              AS datname,
@@ -58,7 +58,7 @@ SELECT
     COALESCE(b.state, '')                AS state,
     COALESCE(b.query, '')                AS query,
     -- New: procedure id (oid as text, empty string if none)
-    COALESCE(p.proc_oid::text, '')       AS procedure_id,
+    COALESCE(p.proc_oid::text, '0')       AS procedure_id,
     -- Existing: schema.name if a procedure is identified
     COALESCE(
             CASE
