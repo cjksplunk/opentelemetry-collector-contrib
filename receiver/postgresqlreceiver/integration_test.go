@@ -160,7 +160,6 @@ func TestScrapeLogsFromContainer(t *testing.T) {
 		testcontainers.GenericContainerRequest{
 			ProviderType: testcontainers.ProviderPodman,
 			ContainerRequest: testcontainers.ContainerRequest{
-
 				Image: fmt.Sprintf("postgres:%s", post17TestVersion),
 				Env: map[string]string{
 					"POSTGRES_USER":     "root",
@@ -199,7 +198,7 @@ func TestScrapeLogsFromContainer(t *testing.T) {
 	connStr := fmt.Sprintf("postgres://root:otel@localhost:%s/otel2?sslmode=disable", p.Port())
 	db, err := sql.Open("postgres", connStr)
 	assert.NoError(t, err)
-	//defer db.Close()
+	defer db.Close()
 
 	cfg := Config{
 		Databases: []string{"postgres"},
@@ -225,9 +224,9 @@ func TestScrapeLogsFromContainer(t *testing.T) {
 	}, &cfg, clientFactory, newCache(1), newTTLCache[string](1000, time.Second))
 	// run an example query in a separate thread so that it is picked up by the log scraper
 	// Note that it is ASSUMED that the scraper will run within 1 second of this query being run, but it is not
-	//guaranteed, so adjustments may be appropriate later
+	// guaranteed, so adjustments may be appropriate later
 	waitGroup := sync.WaitGroup{}
-	go testQuery(db, "Select * from test2 where id = 67; select pg_sleep(1);", t, &waitGroup)
+	go testQuery(t, db, "Select * from test2 where id = 67; select pg_sleep(1);", &waitGroup)
 	plogs, err := ns.scrapeQuerySamples(t.Context(), 30)
 	assert.NoError(t, err)
 	logRecords := plogs.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords()
@@ -303,10 +302,9 @@ func TestScrapeLogsFromContainer(t *testing.T) {
 	waitGroup.Wait()
 }
 
-func testQuery(db *sql.DB, query string, t *testing.T, waitGroup *sync.WaitGroup) error {
+func testQuery(t *testing.T, db *sql.DB, query string, waitGroup *sync.WaitGroup) {
 	waitGroup.Add(1)
 	_, err := db.Exec(query)
 	assert.NoError(t, err)
 	waitGroup.Done()
-	return err
 }
