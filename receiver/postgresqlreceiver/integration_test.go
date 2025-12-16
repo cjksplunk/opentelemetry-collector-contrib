@@ -11,6 +11,7 @@ import (
 	"net"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -159,6 +160,7 @@ func TestScrapeLogsFromContainer(t *testing.T) {
 		testcontainers.GenericContainerRequest{
 			ProviderType: testcontainers.ProviderPodman,
 			ContainerRequest: testcontainers.ContainerRequest{
+
 				Image: fmt.Sprintf("postgres:%s", post17TestVersion),
 				Env: map[string]string{
 					"POSTGRES_USER":     "root",
@@ -187,20 +189,17 @@ func TestScrapeLogsFromContainer(t *testing.T) {
 					WithOccurrence(1),
 			},
 		})
+	defer testcontainers.CleanupContainer(t, ci)
 	assert.NoError(t, err)
 
 	err = ci.Start(t.Context())
 	assert.NoError(t, err)
-	defer testcontainers.CleanupContainer(t, ci)
 	p, err := ci.MappedPort(t.Context(), postgresqlPort)
 	assert.NoError(t, err)
 	connStr := fmt.Sprintf("postgres://root:otel@localhost:%s/otel2?sslmode=disable", p.Port())
 	db, err := sql.Open("postgres", connStr)
 	assert.NoError(t, err)
-
-	_, err = db.Exec("Select * from test2 where id = 67")
-	assert.NoError(t, err)
-	defer db.Close()
+	//defer db.Close()
 
 	cfg := Config{
 		Databases: []string{"postgres"},
@@ -224,6 +223,11 @@ func TestScrapeLogsFromContainer(t *testing.T) {
 			Logger: zap.Must(zap.NewProduction()),
 		},
 	}, &cfg, clientFactory, newCache(1), newTTLCache[string](1000, time.Second))
+	// run an example query in a separate thread so that it is picked up by the log scraper
+	// Note that it is ASSUMED that the scraper will run within 1 second of this query being run, but it is not
+	//guaranteed, so adjustments may be appropriate later
+	waitGroup := sync.WaitGroup{}
+	go testQuery(db, "Select * from test2 where id = 67; select pg_sleep(1);", t, &waitGroup)
 	plogs, err := ns.scrapeQuerySamples(t.Context(), 30)
 	assert.NoError(t, err)
 	logRecords := plogs.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords()
@@ -236,7 +240,7 @@ func TestScrapeLogsFromContainer(t *testing.T) {
 		if !strings.HasPrefix(query, "select * from test2") {
 			continue
 		}
-		assert.Equal(t, "select * from test2 where id = ?", query)
+		assert.Equal(t, "select * from test2 where id = ? select pg_sleep ( ? )", query)
 		databaseAttribute, ok := attributes["db.namespace"]
 		assert.True(t, ok)
 		assert.Equal(t, "otel2", databaseAttribute.(string))
@@ -293,5 +297,16 @@ func TestScrapeLogsFromContainer(t *testing.T) {
 		assert.Equal(t, int64(2), calls.(int64))
 		found = true
 	}
+
 	assert.True(t, found, "Expected to find a log record with the query text from the first time top query")
+	// wait for the query goroutine to finish
+	waitGroup.Wait()
+}
+
+func testQuery(db *sql.DB, query string, t *testing.T, waitGroup *sync.WaitGroup) error {
+	waitGroup.Add(1)
+	_, err := db.Exec(query)
+	assert.NoError(t, err)
+	waitGroup.Done()
+	return err
 }

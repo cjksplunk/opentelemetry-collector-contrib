@@ -29,6 +29,7 @@ WITH base AS (
             END AS called_proc_name
     FROM pg_stat_activity
     WHERE COALESCE(TRIM(query), '') <> ''
+    AND state = 'active'
 ),
      procs AS (
          SELECT
