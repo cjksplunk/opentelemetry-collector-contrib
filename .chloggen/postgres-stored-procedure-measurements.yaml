@@ -20,6 +20,7 @@ subtext: |
   - Introduced new configuration options to enable stored procedure metrics collection.
   - Implemented SQL queries to gather execution statistics from PostgreSQL system catalogs.
   - Added unit and integration tests to validate the new functionality.
+  - Merged changes from HEAD
 
 # If your change doesn't affect end users or the exported elements of any package,
 # you should instead start your pull request title with [chore] or use the "Skip Changelog" label.

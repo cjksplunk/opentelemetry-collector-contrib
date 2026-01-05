@@ -243,8 +243,8 @@ func (p *postgreSQLScraper) collectQuerySamples(ctx context.Context, dbClient cl
 			atts[dbAttributePrefix+querySampleColumnWaitEventType].(string),
 			atts[dbAttributePrefix+querySampleColumnQueryID].(string),
 			atts[postgresqlTotalExecTimeAttributeName].(float64),
-			atts["procedure_id"].(string),
-			atts["procedure_name"].(string),
+			atts[dbAttributePrefix+querySampleColumnProcedureID].(string),
+			atts[dbAttributePrefix+querySampleColumnProcedureName].(string),
 		)
 	}
 }

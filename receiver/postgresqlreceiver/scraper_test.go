@@ -422,6 +422,8 @@ var querySampleColumns = []string{
 	querySampleColumnState,
 	querySampleColumnQuery,
 	querySampleColumnDurationMilliseconds,
+	querySampleColumnProcedureID,
+	querySampleColumnProcedureName,
 }
 
 func newQuerySampleRows(t *testing.T, values map[string]any) *sqlmock.Rows {
@@ -474,6 +476,10 @@ func TestScrapeQuerySample(t *testing.T) {
 		querySampleColumnState:                "idle",
 		querySampleColumnQuery:                "select * from pg_stat_activity where id = 32",
 		querySampleColumnDurationMilliseconds: "1.2",
+		querySampleColumnProcedureID:          "123",
+		querySampleColumnProcedureName:        "imaprocedure",
+		querySampleColumnWaitEventType:        "",
+		querySampleColumnWaitEvent:            "",
 	}))
 	actualLogs, err := scraper.scrapeQuerySamples(t.Context(), 30)
 	assert.NoError(t, err)

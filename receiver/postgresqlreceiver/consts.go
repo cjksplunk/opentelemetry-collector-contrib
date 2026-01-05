@@ -35,6 +35,8 @@ const (
 	querySampleColumnUsename              = "usename"
 	querySampleColumnWaitEvent            = "wait_event"
 	querySampleColumnWaitEventType        = "wait_event_type"
+	querySampleColumnProcedureID          = "procedure_id"
+	querySampleColumnProcedureName        = "procedure_name"
 )
 
 const (
