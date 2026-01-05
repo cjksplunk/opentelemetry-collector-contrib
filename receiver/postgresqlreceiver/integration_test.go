@@ -110,6 +110,7 @@ func integrationTest(name string, databases []string, pgVersion string) func(*te
 			}),
 		scraperinttest.WithExpectedFile(expectedFile),
 		scraperinttest.WithCompareOptions(
+			pmetrictest.IgnoreResourceAttributeValue("service.instance.id"),
 			pmetrictest.IgnoreResourceMetricsOrder(),
 			pmetrictest.IgnoreMetricValues(
 				"postgresql.backends",
