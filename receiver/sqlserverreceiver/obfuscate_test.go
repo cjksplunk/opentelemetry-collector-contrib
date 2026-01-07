@@ -40,6 +40,15 @@ func TestObfuscateInvalidSQL(t *testing.T) {
 	assert.Equal(t, expected, result)
 }
 
+func TestObfuscateNilSQL(t *testing.T) {
+	obf := newObfuscator()
+	sql := ""
+	result, err := obf.obfuscateSQLString(sql)
+	assert.Empty(t, result)
+	assert.Error(t, err)
+	assert.Equal(t, "empty SQL string", err.Error())
+}
+
 func TestObfuscateQueryPlan(t *testing.T) {
 	expected, err := os.ReadFile(filepath.Join("testdata", "expectedQueryPlan.xml"))
 	assert.NoError(t, err)
@@ -92,4 +101,13 @@ func TestValidQueryPlans(t *testing.T) {
 	plan = `<ShowPlanXML StatementText="SELECT * FROM table"><!-- comment --></ShowPlanXML>`
 	_, err = obf.obfuscateXMLPlan(plan)
 	assert.NoError(t, err)
+}
+
+func TestObfuscateNilQueryPlan(t *testing.T) {
+	obf := newObfuscator()
+	plan := ""
+	result, err := obf.obfuscateXMLPlan(plan)
+	assert.Empty(t, result)
+	assert.Error(t, err)
+	assert.Equal(t, "empty XML plan", err.Error())
 }
