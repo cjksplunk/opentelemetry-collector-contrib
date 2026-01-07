@@ -6,6 +6,7 @@ package sqlserverreceiver // import "github.com/open-telemetry/opentelemetry-col
 import (
 	"bytes"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -30,6 +31,9 @@ func newObfuscator() *obfuscator {
 }
 
 func (o *obfuscator) obfuscateSQLString(sql string) (string, error) {
+	if len(sql) == 0 {
+		return "", errors.New("empty SQL string")
+	}
 	obfuscatedQuery, err := (*obfuscate.Obfuscator)(o).ObfuscateSQLString(sql)
 	if err != nil {
 		return "", err
@@ -39,6 +43,9 @@ func (o *obfuscator) obfuscateSQLString(sql string) (string, error) {
 
 // obfuscateXMLPlan obfuscates SQL text & parameters from the provided SQL Server XML Plan
 func (o *obfuscator) obfuscateXMLPlan(rawPlan string) (string, error) {
+	if len(rawPlan) == 0 {
+		return "", errors.New("empty XML plan")
+	}
 	decoder := xml.NewDecoder(strings.NewReader(rawPlan))
 	var buffer bytes.Buffer
 	encoder := xml.NewEncoder(&buffer)
@@ -62,7 +69,7 @@ func (o *obfuscator) obfuscateXMLPlan(rawPlan string) (string, error) {
 						}
 						val, err := o.obfuscateSQLString(elem.Attr[i].Value)
 						if err != nil {
-							fmt.Println("Unable to obfuscate SQL statement in query plan, skipping: " + elem.Attr[i].Value)
+							fmt.Println(fmt.Sprintf("Unable to obfuscate SQL statement in query plan, skipping element %d", i))
 							return "", nil
 						}
 						elem.Attr[i].Value = val

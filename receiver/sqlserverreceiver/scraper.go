@@ -655,7 +655,8 @@ func (s *sqlServerScraperHelper) recordDatabaseQueryTextAndPlan(ctx context.Cont
 		if !errors.Is(err, sqlquery.ErrNullValueWarning) {
 			return resources, fmt.Errorf("sqlServerScraperHelper failed getting rows: %w", err)
 		}
-		s.logger.Warn("problems encountered getting log rows", zap.Error(err))
+		s.logger.Warn("problems encountered getting log rows, aborting collection", zap.Error(err))
+		return resources, nil
 	}
 	var errs []error
 
@@ -705,7 +706,7 @@ func (s *sqlServerScraperHelper) recordDatabaseQueryTextAndPlan(ctx context.Cont
 			statement := row[columnName]
 			obfuscated, err := s.obfuscator.obfuscateSQLString(statement)
 			if err != nil {
-				s.logger.Error(fmt.Sprintf("failed to obfuscate SQL statement: %v", statement))
+				s.logger.Error(fmt.Sprintf("failed to obfuscate SQL statement for %v", row[queryHashVal]))
 				return "", nil
 			}
 
@@ -737,7 +738,12 @@ func (s *sqlServerScraperHelper) recordDatabaseQueryTextAndPlan(ctx context.Cont
 		}
 
 		queryPlanVal := s.retrieveValue(row, queryPlan, &errs, func(row sqlquery.StringMap, columnName string) (any, error) {
-			return s.obfuscator.obfuscateXMLPlan(row[columnName])
+			obfuscated, err := s.obfuscator.obfuscateXMLPlan(row[columnName])
+			if err != nil {
+				s.logger.Error(fmt.Sprintf("failed to obfuscate XML Plan for %v", row[queryPlanHashVal]))
+				return "", nil
+			}
+			return obfuscated, nil
 		})
 
 		rowsReturnedVal := s.retrieveValue(row, rowsReturned, &errs, retrieveInt)
@@ -973,7 +979,7 @@ func (s *sqlServerScraperHelper) recordDatabaseSampleQuery(ctx context.Context) 
 			statement := row[columnName]
 			obfuscated, err := s.obfuscator.obfuscateSQLString(statement)
 			if err != nil {
-				s.logger.Error(fmt.Sprintf("failed to obfuscate SQL statement: %v", statement))
+				s.logger.Error(fmt.Sprintf("failed to obfuscate SQL statement for  %v", row[queryHashVal]))
 				return "", nil
 			}
 			return obfuscated, nil
