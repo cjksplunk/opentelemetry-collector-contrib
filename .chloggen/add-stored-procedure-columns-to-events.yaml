@@ -16,7 +16,7 @@ issues: [44656]
 # These lines will be padded with 2 spaces and then inserted directly into the document.
 # Use pipe (|) for multiline entries.
 subtext: Refined query and reported events to include stored procedure information when applicable.
-  Expanded default samples count from 200 to 250 to account for teh addition of stored procedure events.
+  Additionally, the maximum number of active queries reported by default has been increased from 200 to 250 to account for record deaggregation introduced by this change, ensuring the effective limit remains consistent with the previous 200-query baseline.
 
 # If your change doesn't affect end users or the exported elements of any package,
 # you should instead start your pull request title with [chore] or use the "Skip Changelog" label.
