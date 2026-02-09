@@ -685,9 +685,9 @@ This provides real-time visibility into active queries, helping users monitor da
 | db.query.text | The SQL statement text for the event. | Any Str |
 | db.system.name | The name of the database system. | Str: ``mysql`` |
 | mysql.event_id | The thread associated with the event and the thread current event number when the event starts. | Any Int |
-| mysql.query_hash | The statement digest SHA-256 value as a string of 64 hexadecimal characters, or empty if the statements_digest consumer is no. | Any Str |
-| mysql.query_plan_hash | The SHA256 hash of the query plan for the statement, if available. | Any Str |
-| mysql.wait_time | Timing information for the event, indicating elapsed time the event waited in seconds. | Any Double |
+| mysql.query.hash | The statement digest SHA-256 value as a string of 64 hexadecimal characters, or empty if the statements_digest consumer is no. | Any Str |
+| mysql.query_plan.hash | The SHA256 hash of the query plan for the statement, if available. | Any Str |
+| mysql.operation.wait_time | Timing information for the event, indicating elapsed time the event waited in seconds. | Any Double |
 | mysql.threads.processlist_command | The type of command the thread is executing on behalf of the client for foreground threads, or `Sleep` if the session is idle. | Any Str |
 | mysql.threads.processlist_state | An action, event, or state that indicates what the thread is doing. | Any Str |
 | mysql.threads.thread_id | The unique identifier for the thread executing the statement. | Any Int |
@@ -717,10 +717,10 @@ This provides insights into query performance and resource usage, helping users 
 | db.system.name | The name of the database system. | Str: ``mysql`` |
 | db.query.text | The SQL statement text for the event. | Any Str |
 | mysql.query_plan | The query plan for the statement, if available. | Any Str |
-| mysql.query_plan_hash | The SHA256 hash of the query plan for the statement, if available. | Any Str |
-| mysql.query_hash | The statement digest SHA-256 value as a string of 64 hexadecimal characters, or empty if the statements_digest consumer is no. | Any Str |
-| mysql.execution_count | The number of times the statement was executed, report in delta value. | Any Int |
-| mysql.total_elapsed_time | The total time spent executing the statement, report in delta seconds. | Any Double |
+| mysql.query_plan.hash | The SHA256 hash of the query plan for the statement, if available. | Any Str |
+| mysql.query.hash | The statement digest SHA-256 value as a string of 64 hexadecimal characters, or empty if the statements_digest consumer is no. | Any Str |
+| mysql.operation.execution.count | The number of times the statement was executed, report in delta value. | Any Int |
+| mysql.operation.duration | The total time spent executing the statement, report in delta seconds. | Any Double |
 
 ## Resource Attributes
 
