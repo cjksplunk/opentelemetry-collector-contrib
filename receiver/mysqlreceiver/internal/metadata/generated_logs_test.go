@@ -129,7 +129,7 @@ func TestLogsBuilder(t *testing.T) {
 			allEventsCount := 0
 			defaultEventsCount++
 			allEventsCount++
-			lb.RecordDbServerQuerySampleEvent(ctx, timestamp, "client.address-val", 11, "db.namespace-val", "db.query.text-val", AttributeDbSystemNameMysql, 14, "mysql.query_hash-val", "mysql.query_plan_hash-val", 15.100000, "mysql.threads.processlist_command-val", "mysql.threads.processlist_state-val", 23, "mysql.wait_type-val", "network.peer.address-val", 17, "user.name-val")
+			lb.RecordDbServerQuerySampleEvent(ctx, timestamp, "client.address-val", 11, "db.namespace-val", "db.query.text-val", AttributeDbSystemNameMysql, 14, "mysql.query_hash-val", "mysql.query_plan_hash-val", 15.100000, "mysql.threads.processlist_command-val", "mysql.threads.processlist_state-val", 23, "mysql.wait_type-val", "user.name-val")
 
 			allEventsCount++
 			lb.RecordDbServerTopQueryEvent(ctx, timestamp, AttributeDbSystemNameMysql, "db.query.text-val", "mysql.query_plan-val", "mysql.query_plan_hash-val", "mysql.query_hash-val", 21, 24.100000)
@@ -204,12 +204,6 @@ func TestLogsBuilder(t *testing.T) {
 					attrVal, ok = lr.Attributes().Get("mysql.wait_type")
 					assert.True(t, ok)
 					assert.Equal(t, "mysql.wait_type-val", attrVal.Str())
-					attrVal, ok = lr.Attributes().Get("network.peer.address")
-					assert.True(t, ok)
-					assert.Equal(t, "network.peer.address-val", attrVal.Str())
-					attrVal, ok = lr.Attributes().Get("network.peer.port")
-					assert.True(t, ok)
-					assert.EqualValues(t, 17, attrVal.Int())
 					attrVal, ok = lr.Attributes().Get("user.name")
 					assert.True(t, ok)
 					assert.Equal(t, "user.name-val", attrVal.Str())
