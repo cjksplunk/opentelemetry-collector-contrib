@@ -743,8 +743,6 @@ func (m *mySQLScraper) scrapeQuerySamples(ctx context.Context, now pcommon.Times
 		sample := &samples[i]
 		clientAddress := ""
 		clientPort := int64(0)
-		networkPeerAddress := ""
-		networkPeerPort := int64(0)
 
 		if sample.processlistHost != "" {
 			addr, port, err := net.SplitHostPort(sample.processlistHost)
@@ -754,8 +752,6 @@ func (m *mySQLScraper) scrapeQuerySamples(ctx context.Context, now pcommon.Times
 			} else {
 				clientAddress = addr
 				clientPort, _ = parseInt(port)
-				networkPeerAddress = addr
-				networkPeerPort, _ = parseInt(port)
 			}
 		}
 
@@ -789,8 +785,6 @@ func (m *mySQLScraper) scrapeQuerySamples(ctx context.Context, now pcommon.Times
 			sample.processlistState,
 			sample.threadID,
 			sample.waitEvent,
-			networkPeerAddress,
-			networkPeerPort,
 			sample.processlistUser,
 		)
 	}
