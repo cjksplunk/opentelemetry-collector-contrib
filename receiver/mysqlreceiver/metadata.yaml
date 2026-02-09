@@ -155,12 +155,6 @@ attributes:
     description: The worker thread count kind.
     type: string
     enum: [available, active]
-  network.peer.address:
-    description: IP address of the peer client.
-    type: string
-  network.peer.port:
-    description: TCP port used by the peer client.
-    type: int
   opened_resources:
     name_override: kind
     description: The kind of the resource.
@@ -251,8 +245,6 @@ events:
       - mysql.threads.processlist_state
       - mysql.threads.thread_id
       - mysql.wait_type
-      - network.peer.address
-      - network.peer.port
       - user.name
 
   db.server.top_query:
