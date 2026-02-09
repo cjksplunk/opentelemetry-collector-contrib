@@ -4,9 +4,6 @@ package metadata
 
 import (
 	"context"
-	"testing"
-	"time"
-
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
@@ -14,6 +11,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
+	"testing"
+	"time"
 )
 
 type eventsTestDataSet int
@@ -129,10 +128,10 @@ func TestLogsBuilder(t *testing.T) {
 			allEventsCount := 0
 			defaultEventsCount++
 			allEventsCount++
-			lb.RecordDbServerQuerySampleEvent(ctx, timestamp, "client.address-val", 11, "db.namespace-val", "db.query.text-val", AttributeDbSystemNameMysql, 14, "mysql.query_hash-val", "mysql.query_plan_hash-val", 15.100000, "mysql.threads.processlist_command-val", "mysql.threads.processlist_state-val", 23, "mysql.wait_type-val", "user.name-val")
+			lb.RecordDbServerQuerySampleEvent(ctx, timestamp, "client.address-val", 11, "db.namespace-val", "db.query.text-val", AttributeDbSystemNameMysql, 14, "mysql.query.hash-val", "mysql.query_plan.hash-val", 25.100000, "mysql.threads.processlist_command-val", "mysql.threads.processlist_state-val", 23, "mysql.wait_type-val", "user.name-val")
 
 			allEventsCount++
-			lb.RecordDbServerTopQueryEvent(ctx, timestamp, AttributeDbSystemNameMysql, "db.query.text-val", "mysql.query_plan-val", "mysql.query_plan_hash-val", "mysql.query_hash-val", 21, 24.100000)
+			lb.RecordDbServerTopQueryEvent(ctx, timestamp, AttributeDbSystemNameMysql, "db.query.text-val", "mysql.query_plan-val", "mysql.query_plan.hash-val", "mysql.query.hash-val", 31, 24.100000)
 
 			rb := lb.NewResourceBuilder()
 			rb.SetMysqlInstanceEndpoint("mysql.instance.endpoint-val")
@@ -183,15 +182,15 @@ func TestLogsBuilder(t *testing.T) {
 					attrVal, ok = lr.Attributes().Get("mysql.event_id")
 					assert.True(t, ok)
 					assert.EqualValues(t, 14, attrVal.Int())
-					attrVal, ok = lr.Attributes().Get("mysql.query_hash")
+					attrVal, ok = lr.Attributes().Get("mysql.query.hash")
 					assert.True(t, ok)
-					assert.Equal(t, "mysql.query_hash-val", attrVal.Str())
-					attrVal, ok = lr.Attributes().Get("mysql.query_plan_hash")
+					assert.Equal(t, "mysql.query.hash-val", attrVal.Str())
+					attrVal, ok = lr.Attributes().Get("mysql.query_plan.hash")
 					assert.True(t, ok)
-					assert.Equal(t, "mysql.query_plan_hash-val", attrVal.Str())
-					attrVal, ok = lr.Attributes().Get("mysql.wait_time")
+					assert.Equal(t, "mysql.query_plan.hash-val", attrVal.Str())
+					attrVal, ok = lr.Attributes().Get("mysql.operation.wait_time")
 					assert.True(t, ok)
-					assert.Equal(t, 15.100000, attrVal.Double())
+					assert.Equal(t, 25.100000, attrVal.Double())
 					attrVal, ok = lr.Attributes().Get("mysql.threads.processlist_command")
 					assert.True(t, ok)
 					assert.Equal(t, "mysql.threads.processlist_command-val", attrVal.Str())
@@ -223,16 +222,16 @@ func TestLogsBuilder(t *testing.T) {
 					attrVal, ok = lr.Attributes().Get("mysql.query_plan")
 					assert.True(t, ok)
 					assert.Equal(t, "mysql.query_plan-val", attrVal.Str())
-					attrVal, ok = lr.Attributes().Get("mysql.query_plan_hash")
+					attrVal, ok = lr.Attributes().Get("mysql.query_plan.hash")
 					assert.True(t, ok)
-					assert.Equal(t, "mysql.query_plan_hash-val", attrVal.Str())
-					attrVal, ok = lr.Attributes().Get("mysql.query_hash")
+					assert.Equal(t, "mysql.query_plan.hash-val", attrVal.Str())
+					attrVal, ok = lr.Attributes().Get("mysql.query.hash")
 					assert.True(t, ok)
-					assert.Equal(t, "mysql.query_hash-val", attrVal.Str())
-					attrVal, ok = lr.Attributes().Get("mysql.execution_count")
+					assert.Equal(t, "mysql.query.hash-val", attrVal.Str())
+					attrVal, ok = lr.Attributes().Get("mysql.operation.execution.count")
 					assert.True(t, ok)
-					assert.EqualValues(t, 21, attrVal.Int())
-					attrVal, ok = lr.Attributes().Get("mysql.total_elapsed_time")
+					assert.EqualValues(t, 31, attrVal.Int())
+					attrVal, ok = lr.Attributes().Get("mysql.operation.duration")
 					assert.True(t, ok)
 					assert.Equal(t, 24.100000, attrVal.Double())
 				}
