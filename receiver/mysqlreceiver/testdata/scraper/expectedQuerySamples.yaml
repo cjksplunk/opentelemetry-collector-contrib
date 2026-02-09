@@ -45,12 +45,6 @@ resourceLogs:
               - key: client.port
                 value:
                   intValue: "1234"
-              - key: network.peer.address
-                value:
-                  stringValue: 192.168.1.80
-              - key: network.peer.port
-                value:
-                  intValue: "1234"
             body: {}
             eventName: db.server.query_sample
             timeUnixNano: "1754284840912240000"

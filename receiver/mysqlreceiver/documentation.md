@@ -692,8 +692,6 @@ This provides real-time visibility into active queries, helping users monitor da
 | mysql.threads.processlist_state | An action, event, or state that indicates what the thread is doing. | Any Str |
 | mysql.threads.thread_id | The unique identifier for the thread executing the statement. | Any Int |
 | mysql.wait_type | The name of the instrument that produced the event. | Any Str |
-| network.peer.address | IP address of the peer client. | Any Str |
-| network.peer.port | TCP port used by the peer client. | Any Int |
 | user.name | The user associated with a foreground thread, empty for a background thread (originally processlist_user). | Any Str |
 
 ## Optional Events
