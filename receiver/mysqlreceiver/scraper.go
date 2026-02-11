@@ -13,6 +13,7 @@ import (
 	"net"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -745,9 +746,12 @@ func (m *mySQLScraper) scrapeQuerySamples(ctx context.Context, now pcommon.Times
 		clientPort := int64(0)
 
 		if sample.processlistHost != "" {
+			if !strings.Contains(sample.processlistHost, ":") {
+				sample.processlistHost = net.JoinHostPort(sample.processlistHost, "0") // add dummy port to make it parsable
+			}
 			addr, port, err := net.SplitHostPort(sample.processlistHost)
 			if err != nil {
-				m.logger.Error("Failed to parse processlistHost value", zap.Error(err))
+				m.logger.Error("Failed to parse processlistHost value", zap.Error(err), zap.String("addressValue", sample.processlistHost))
 				errs.AddPartial(1, err)
 			} else {
 				clientAddress = addr
@@ -781,6 +785,7 @@ func (m *mySQLScraper) scrapeQuerySamples(ctx context.Context, now pcommon.Times
 			sample.digest,
 			queryPlanHash,
 			sample.waitTime,
+			sample.sessionStatus,
 			sample.processlistCommand,
 			sample.processlistState,
 			sample.threadID,

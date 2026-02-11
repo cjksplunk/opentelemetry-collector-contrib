@@ -198,6 +198,7 @@ type replicaStatusStats struct {
 }
 
 type querySample struct {
+	sessionId          int64
 	threadID           int64
 	processlistUser    string
 	processlistHost    string
@@ -208,6 +209,7 @@ type querySample struct {
 	digest             string
 	schema             string
 	eventID            int64
+	sessionStatus      string
 	waitEvent          string
 	waitTime           float64
 }
@@ -766,6 +768,7 @@ func (c *mySQLClient) getQuerySamples(limit uint64) ([]querySample, error) {
 	for rows.Next() {
 		var s querySample
 		err := rows.Scan(
+			&s.sessionId,
 			&s.threadID,
 			&s.processlistUser,
 			&s.processlistHost,
@@ -776,6 +779,7 @@ func (c *mySQLClient) getQuerySamples(limit uint64) ([]querySample, error) {
 			&s.digest,
 			&s.schema,
 			&s.eventID,
+			&s.sessionStatus,
 			&s.waitEvent,
 			&s.waitTime,
 		)

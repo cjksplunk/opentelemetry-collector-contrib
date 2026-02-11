@@ -138,6 +138,9 @@ attributes:
   mysql.query_plan.hash:
     description: The SHA256 hash of the query plan for the statement, if available.
     type: string
+  mysql.session_status:
+    description: Similar to mysql.threads.processlist_command below, but simplified into waiting/running/other, used in query_sample Events.
+    type: string
   mysql.threads.processlist_command:
     description: The type of command the thread is executing on behalf of the client for foreground threads, or `Sleep` if the session is idle.
     type: string

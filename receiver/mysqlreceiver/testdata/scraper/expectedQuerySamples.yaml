@@ -45,6 +45,9 @@ resourceLogs:
               - key: client.port
                 value:
                   intValue: "1234"
+              - key: mysql.session_status
+                value:
+                  stringValue: "wait"
             body: {}
             eventName: db.server.query_sample
             timeUnixNano: "1754284840912240000"

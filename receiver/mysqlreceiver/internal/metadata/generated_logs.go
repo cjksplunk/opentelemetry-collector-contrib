@@ -4,7 +4,6 @@ package metadata
 
 import (
 	"context"
-
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/filter"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -18,7 +17,7 @@ type eventDbServerQuerySample struct {
 	config EventConfig         // event config provided by user.
 }
 
-func (e *eventDbServerQuerySample) recordEvent(ctx context.Context, timestamp pcommon.Timestamp, clientAddressAttributeValue string, clientPortAttributeValue int64, dbNamespaceAttributeValue string, dbQueryTextAttributeValue string, dbSystemNameAttributeValue string, mysqlEventIDAttributeValue int64, mysqlQueryHashAttributeValue string, mysqlQueryPlanHashAttributeValue string, mysqlOperationWaitTimeAttributeValue float64, mysqlThreadsProcesslistCommandAttributeValue string, mysqlThreadsProcesslistStateAttributeValue string, mysqlThreadsThreadIDAttributeValue int64, mysqlWaitTypeAttributeValue string, userNameAttributeValue string) {
+func (e *eventDbServerQuerySample) recordEvent(ctx context.Context, timestamp pcommon.Timestamp, clientAddressAttributeValue string, clientPortAttributeValue int64, dbNamespaceAttributeValue string, dbQueryTextAttributeValue string, dbSystemNameAttributeValue string, mysqlEventIDAttributeValue int64, mysqlQueryHashAttributeValue string, mysqlQueryPlanHashAttributeValue string, mysqlOperationWaitTimeAttributeValue float64, mysqlSessionStatusAttributeValue string, mysqlThreadsProcesslistCommandAttributeValue string, mysqlThreadsProcesslistStateAttributeValue string, mysqlThreadsThreadIDAttributeValue int64, mysqlWaitTypeAttributeValue string, userNameAttributeValue string) {
 	if !e.config.Enabled {
 		return
 	}
@@ -36,6 +35,7 @@ func (e *eventDbServerQuerySample) recordEvent(ctx context.Context, timestamp pc
 	dp.Attributes().PutStr("db.query.text", dbQueryTextAttributeValue)
 	dp.Attributes().PutStr("db.system.name", dbSystemNameAttributeValue)
 	dp.Attributes().PutInt("mysql.event_id", mysqlEventIDAttributeValue)
+	dp.Attributes().PutStr("mysql.session_status", mysqlSessionStatusAttributeValue)
 	dp.Attributes().PutStr("mysql.query.hash", mysqlQueryHashAttributeValue)
 	dp.Attributes().PutStr("mysql.query_plan.hash", mysqlQueryPlanHashAttributeValue)
 	dp.Attributes().PutDouble("mysql.operation.wait_time", mysqlOperationWaitTimeAttributeValue)
@@ -221,8 +221,8 @@ func (lb *LogsBuilder) Emit(options ...ResourceLogsOption) plog.Logs {
 }
 
 // RecordDbServerQuerySampleEvent adds a log record of db.server.query_sample event.
-func (lb *LogsBuilder) RecordDbServerQuerySampleEvent(ctx context.Context, timestamp pcommon.Timestamp, clientAddressAttributeValue string, clientPortAttributeValue int64, dbNamespaceAttributeValue string, dbQueryTextAttributeValue string, dbSystemNameAttributeValue AttributeDbSystemName, mysqlEventIDAttributeValue int64, mysqlQueryHashAttributeValue string, mysqlQueryPlanHashAttributeValue string, mysqlOperationWaitTimeAttributeValue float64, mysqlThreadsProcesslistCommandAttributeValue string, mysqlThreadsProcesslistStateAttributeValue string, mysqlThreadsThreadIDAttributeValue int64, mysqlWaitTypeAttributeValue string, userNameAttributeValue string) {
-	lb.eventDbServerQuerySample.recordEvent(ctx, timestamp, clientAddressAttributeValue, clientPortAttributeValue, dbNamespaceAttributeValue, dbQueryTextAttributeValue, dbSystemNameAttributeValue.String(), mysqlEventIDAttributeValue, mysqlQueryHashAttributeValue, mysqlQueryPlanHashAttributeValue, mysqlOperationWaitTimeAttributeValue, mysqlThreadsProcesslistCommandAttributeValue, mysqlThreadsProcesslistStateAttributeValue, mysqlThreadsThreadIDAttributeValue, mysqlWaitTypeAttributeValue, userNameAttributeValue)
+func (lb *LogsBuilder) RecordDbServerQuerySampleEvent(ctx context.Context, timestamp pcommon.Timestamp, clientAddressAttributeValue string, clientPortAttributeValue int64, dbNamespaceAttributeValue string, dbQueryTextAttributeValue string, dbSystemNameAttributeValue AttributeDbSystemName, mysqlEventIDAttributeValue int64, mysqlQueryHashAttributeValue string, mysqlQueryPlanHashAttributeValue string, mysqlOperationWaitTimeAttributeValue float64, mysqlSessionStatusAttributeValue string, mysqlThreadsProcesslistCommandAttributeValue string, mysqlThreadsProcesslistStateAttributeValue string, mysqlThreadsThreadIDAttributeValue int64, mysqlWaitTypeAttributeValue string, userNameAttributeValue string) {
+	lb.eventDbServerQuerySample.recordEvent(ctx, timestamp, clientAddressAttributeValue, clientPortAttributeValue, dbNamespaceAttributeValue, dbQueryTextAttributeValue, dbSystemNameAttributeValue.String(), mysqlEventIDAttributeValue, mysqlQueryHashAttributeValue, mysqlQueryPlanHashAttributeValue, mysqlOperationWaitTimeAttributeValue, mysqlSessionStatusAttributeValue, mysqlThreadsProcesslistCommandAttributeValue, mysqlThreadsProcesslistStateAttributeValue, mysqlThreadsThreadIDAttributeValue, mysqlWaitTypeAttributeValue, userNameAttributeValue)
 }
 
 // RecordDbServerTopQueryEvent adds a log record of db.server.top_query event.
