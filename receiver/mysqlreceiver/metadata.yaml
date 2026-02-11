@@ -244,6 +244,7 @@ events:
       - mysql.query.hash
       - mysql.query_plan.hash
       - mysql.operation.wait_time
+      - mysql.session_status
       - mysql.threads.processlist_command
       - mysql.threads.processlist_state
       - mysql.threads.thread_id

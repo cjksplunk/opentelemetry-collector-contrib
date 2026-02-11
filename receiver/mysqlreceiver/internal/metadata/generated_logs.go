@@ -4,6 +4,7 @@ package metadata
 
 import (
 	"context"
+
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/filter"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -35,10 +36,10 @@ func (e *eventDbServerQuerySample) recordEvent(ctx context.Context, timestamp pc
 	dp.Attributes().PutStr("db.query.text", dbQueryTextAttributeValue)
 	dp.Attributes().PutStr("db.system.name", dbSystemNameAttributeValue)
 	dp.Attributes().PutInt("mysql.event_id", mysqlEventIDAttributeValue)
-	dp.Attributes().PutStr("mysql.session_status", mysqlSessionStatusAttributeValue)
 	dp.Attributes().PutStr("mysql.query.hash", mysqlQueryHashAttributeValue)
 	dp.Attributes().PutStr("mysql.query_plan.hash", mysqlQueryPlanHashAttributeValue)
 	dp.Attributes().PutDouble("mysql.operation.wait_time", mysqlOperationWaitTimeAttributeValue)
+	dp.Attributes().PutStr("mysql.session_status", mysqlSessionStatusAttributeValue)
 	dp.Attributes().PutStr("mysql.threads.processlist_command", mysqlThreadsProcesslistCommandAttributeValue)
 	dp.Attributes().PutStr("mysql.threads.processlist_state", mysqlThreadsProcesslistStateAttributeValue)
 	dp.Attributes().PutInt("mysql.threads.thread_id", mysqlThreadsThreadIDAttributeValue)

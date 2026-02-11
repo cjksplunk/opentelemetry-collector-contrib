@@ -688,6 +688,7 @@ This provides real-time visibility into active queries, helping users monitor da
 | mysql.query.hash | The statement digest SHA-256 value as a string of 64 hexadecimal characters, or empty if the statements_digest consumer is no. | Any Str |
 | mysql.query_plan.hash | The SHA256 hash of the query plan for the statement, if available. | Any Str |
 | mysql.operation.wait_time | Timing information for the event, indicating elapsed time the event waited in seconds. | Any Double |
+| mysql.session_status | Similar to mysql.threads.processlist_command below, but simplified into waiting/running/other, used in query_sample Events. | Any Str |
 | mysql.threads.processlist_command | The type of command the thread is executing on behalf of the client for foreground threads, or `Sleep` if the session is idle. | Any Str |
 | mysql.threads.processlist_state | An action, event, or state that indicates what the thread is doing. | Any Str |
 | mysql.threads.thread_id | The unique identifier for the thread executing the statement. | Any Int |

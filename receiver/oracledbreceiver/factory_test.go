@@ -111,3 +111,21 @@ func TestGetDataSource(t *testing.T) {
 		})
 	}
 }
+
+func TestGetHostName(t *testing.T) {
+	hostName, err := getHostName("oracle://username1:p@ssword%25-_1@example.com:1521/mydb")
+	assert.NoError(t, err)
+	assert.Equal(t, "example.com:1521", hostName)
+
+	cfg := Config{
+		Service:    "service",
+		Username:   "username",
+		Password:   "password",
+		Endpoint:   "example.com:1521",
+		DataSource: "oracle://username1:p@ssword%25-_1@example.com:1521/mydb",
+	}
+	datasource := getDataSource(cfg)
+	hostName, err = getHostName(datasource)
+	assert.NoError(t, err)
+	assert.Equal(t, "example.com:1521", hostName)
+}
