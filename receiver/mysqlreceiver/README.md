@@ -58,10 +58,11 @@ The following settings are optional:
   - `digest_text_limit` - maximum length of `digest_text`. Longer text will be truncated (default=`120`)
   - `time_limit` - maximum time from since the statements have been observed last time (default=`24h`)
   - `limit` - limit of records, which is maximum number of generated metrics (default=`250`)
-- `query_sample_collection`: Additional configuration for query sample collection(`db.server.query_sample` event):
+- `events`: Defines which events to collect as described below. 
+- `db.server.query_sample`: Additional configuration for query sample collection(`db.server.query_sample` event):
   - `max_rows_per_query` - maximum number of rows to collect per scrape (default=`100`)
   - Note that collection of Query Plans requires that the query returned from `performance_schema.events_statements_summary_by_digest` is limited to 1024 characters by default. If a query exceeds this length, the plan cannot be collected. See `QUERY_SAMPLE_TEXT` in https://dev.mysql.com/doc/refman/8.4/en/performance-schema-statement-summary-tables.html for details and how to change this limit.
-- `top_query_collection`: Additional configuration for top queries collection (`db.server.top_query` event):
+- `db.server.top_query`: Additional configuration for top queries collection (`db.server.top_query` event):
   - `lookback_time` (optional, example = `60`, default = `2 * collection_interval`): The time window (in seconds) in which to query for top queries.
     - Queries that finished execution outside the lookback window are not included in the collection. Increasing the lookback window will be useful for capturing long-running queries.
   - `max_query_sample_count` (optional, example = `5000`, default = `1000`): The maximum number of records to fetch in a single run.
@@ -77,35 +78,34 @@ The following settings are optional:
     This defines the cache's size for query plan.
   - `query_plan_cache_ttl`: (optional, example = `1m`, default = `1h`). How long until a query plan expires in the cache. The receiver will run an explain query to MySQL to get the query plan after it expires.
 
-- `top_query_collection` : 
-  - `enabled` (default = `false`): Enables the collection and reporting of top queries. If this is set to `true`, the receiver will collect and report the top queries based on their execution time as Logs (to include query and plan text, which otherwise exceeds Metrics limits), including the following attributes:
-    - `mysql.current_schema`: The current schema.
-    - `mysql.query_hash`: The hash of the query.
-    - `mysql.query_hash_text`: The normalized text of the query.
-    - `mysql.end_event_id`: The event ID of the end event.
-    - `mysql.uptime`: The uptime of the MySQL server.
-    - `mysql.timer_start`: The start time of the event.
-    - `mysql.timer_end`: The end time of the event.
-    - `mysql.timer_wait`: The wait time of the event.
-    - `mysql.lock_time`: The lock time of the event.
-    - `mysql.rows_affected`: The number of rows affected by the event.
-    - `mysql.rows_sent`: The number of rows sent by the event.
-    - `mysql.rows_examined`: The number of rows examined by the event.
-    - `mysql.select_full_join`: The number of full joins performed by the event.
-    - `mysql.select_full_range_join`: The number of full range joins performed by the event.
-    - `mysql.select_range`: The number of range selections performed by the event.
-    - `mysql.select_range_check`: The number of range checks performed by the event.
-    - `mysql.select_scan`: The number of scans performed by the event.
-    - `mysql.sort_merge_passes`: The number of sort merge passes performed by the event.
-    - `mysql.sort_range`: The number of range sorts performed by the event.
-    - `mysql.sort_rows`: The number of rows sorted by the event.
-    - `mysql.sort_scan`: The number of scans performed by the event.
-    - `mysql.no_good_index_used`: The number of times a good index was not used by the event.
-    - `mysql.no_index_used`: The number of times an index was not used by the event.
-    - `mysql.process_list_user`: The user who executed the query.
-    - `mysql.process_list_host`: The host from which the query was executed.
-    - `mysql.process_list_db`: The database from which the query was executed.
-  - `top_query_count` (default = 200): The maximum number of top queries to be collected and emitted with the above attributes.  The value must be a positive integer. If set to 0, no top queries will be collected.
+- `events`:
+  - `db.server.query_sample`:
+    - `enabled` (default = `false`): Enables the collection and reporting of query samples. If this is set to `true`, the receiver will collect and report query samples as Logs (to include query text, which otherwise exceeds Metrics limits), including the following attributes:
+      - `client.address`: The address of the client that issued the query.
+      - `client.port`: The port of the client that issued the query. This may be zero ('0') if the port information is not available.
+      - `db.namespace`: The namespace of the database, which is the same as the database name for MySQL.
+      - `db.query.text`: The normalized text of the query.
+      - `db.system.name`: The name of the database system, which is `mysql` for this receiver.
+      - `mysql.event_id`: The unique identifier for the query event.
+      - `mysql.query.hash`: The hash of the query.
+      - `mysql.query_plan.hash`: The hash of the query plan.
+      - `mysql.operation.wait_time`: The time (in milliseconds) that the query spent waiting.
+      - `mysql.threads.processlist_command`: The command of the thread that issued the query.
+      - `mysql.threads.processlist_state`: The state of the thread that issued the query.
+      - `mysql.threads.thread_id`: The thread ID of the thread that issued the query.
+      - `mysql.wait_type`: The type of wait that the query experienced, if any.
+      - `user.name`: The name of the user that issued the query.
+
+  - `db.server.top_query` : 
+    - `enabled` (default = `false`): Enables the collection and reporting of top queries. If this is set to `true`, the receiver will collect and report the top queries based on their execution time as Logs (to include query and plan text, which otherwise exceeds Metrics limits), including the following attributes:
+      - `db.system.name`: The name of the database system, which is `mysql` for this receiver.
+      - `db.query.text`: The normalized text of the query.
+      - `mysql.query.plan`: The query plan of the query.
+      - `mysql.query_plan.hash`: The hash of the query plan.
+      - `mysql.query.hash`: The hash of the query.
+      - `mysql.operation.exectuion.count`: The number of times this query was executed.
+      - `mysql.operation.duration`: The total duration (in milliseconds) spent executing this query.
+
 ### Example Configuration
 
 ```yaml
