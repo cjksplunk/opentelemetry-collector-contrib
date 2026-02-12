@@ -45,7 +45,7 @@ resourceLogs:
               - key: client.port
                 value:
                   intValue: "1234"
-              - key: mysql.session_status
+              - key: mysql.session.state
                 value:
                   stringValue: "wait"
             body: {}

@@ -129,7 +129,7 @@ func TestLogsBuilder(t *testing.T) {
 			allEventsCount := 0
 			defaultEventsCount++
 			allEventsCount++
-			lb.RecordDbServerQuerySampleEvent(ctx, timestamp, "client.address-val", 11, "db.namespace-val", "db.query.text-val", AttributeDbSystemNameMysql, 14, "mysql.query.hash-val", "mysql.query_plan.hash-val", 25.100000, "mysql.session_status-val", "mysql.threads.processlist_command-val", "mysql.threads.processlist_state-val", 23, "mysql.wait_type-val", "user.name-val")
+			lb.RecordDbServerQuerySampleEvent(ctx, timestamp, "client.address-val", 11, "db.namespace-val", "db.query.text-val", AttributeDbSystemNameMysql, 14, "mysql.query.hash-val", "mysql.query_plan.hash-val", 25.100000, "mysql.session.state-val", "mysql.threads.processlist_command-val", "mysql.threads.processlist_state-val", 23, "mysql.wait_type-val", "user.name-val")
 
 			allEventsCount++
 			lb.RecordDbServerTopQueryEvent(ctx, timestamp, AttributeDbSystemNameMysql, "db.query.text-val", "mysql.query_plan-val", "mysql.query_plan.hash-val", "mysql.query.hash-val", 31, 24.100000)
@@ -192,9 +192,9 @@ func TestLogsBuilder(t *testing.T) {
 					attrVal, ok = lr.Attributes().Get("mysql.operation.wait_time")
 					assert.True(t, ok)
 					assert.Equal(t, 25.100000, attrVal.Double())
-					attrVal, ok = lr.Attributes().Get("mysql.session_status")
+					attrVal, ok = lr.Attributes().Get("mysql.session.state")
 					assert.True(t, ok)
-					assert.Equal(t, "mysql.session_status-val", attrVal.Str())
+					assert.Equal(t, "mysql.session.state-val", attrVal.Str())
 					attrVal, ok = lr.Attributes().Get("mysql.threads.processlist_command")
 					assert.True(t, ok)
 					assert.Equal(t, "mysql.threads.processlist_command-val", attrVal.Str())
