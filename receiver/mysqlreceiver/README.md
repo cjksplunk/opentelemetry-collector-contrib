@@ -100,7 +100,7 @@ The following settings are optional:
     - `enabled` (default = `false`): Enables the collection and reporting of top queries. If this is set to `true`, the receiver will collect and report the top queries based on their execution time as Logs (to include query and plan text, which otherwise exceeds Metrics limits), including the following attributes:
       - `db.system.name`: The name of the database system, which is `mysql` for this receiver.
       - `db.query.text`: The normalized text of the query.
-      - `mysql.query.plan`: The query plan of the query.
+      - `mysql.query.plan.text`: The query plan of the query.
       - `mysql.query_plan.hash`: The hash of the query plan.
       - `mysql.query.hash`: The hash of the query.
       - `mysql.operation.exectuion.count`: The number of times this query was executed.

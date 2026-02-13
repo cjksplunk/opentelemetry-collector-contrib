@@ -132,7 +132,7 @@ func TestLogsBuilder(t *testing.T) {
 			lb.RecordDbServerQuerySampleEvent(ctx, timestamp, "client.address-val", 11, "db.namespace-val", "db.query.text-val", AttributeDbSystemNameMysql, 14, "mysql.query.hash-val", "mysql.query_plan.hash-val", 25.100000, "mysql.threads.processlist_command-val", "mysql.threads.processlist_state-val", 23, "mysql.wait_type-val", "user.name-val")
 
 			allEventsCount++
-			lb.RecordDbServerTopQueryEvent(ctx, timestamp, AttributeDbSystemNameMysql, "db.query.text-val", "mysql.query_plan-val", "mysql.query_plan.hash-val", "mysql.query.hash-val", 31, 24.100000)
+			lb.RecordDbServerTopQueryEvent(ctx, timestamp, AttributeDbSystemNameMysql, "db.query.text-val", "mysql.query_plan.text-val", "mysql.query_plan.hash-val", "mysql.query.hash-val", 31, 24.100000)
 
 			rb := lb.NewResourceBuilder()
 			rb.SetMysqlInstanceEndpoint("mysql.instance.endpoint-val")
@@ -220,9 +220,9 @@ func TestLogsBuilder(t *testing.T) {
 					attrVal, ok = lr.Attributes().Get("db.query.text")
 					assert.True(t, ok)
 					assert.Equal(t, "db.query.text-val", attrVal.Str())
-					attrVal, ok = lr.Attributes().Get("mysql.query_plan")
+					attrVal, ok = lr.Attributes().Get("mysql.query_plan.text")
 					assert.True(t, ok)
-					assert.Equal(t, "mysql.query_plan-val", attrVal.Str())
+					assert.Equal(t, "mysql.query_plan.text-val", attrVal.Str())
 					attrVal, ok = lr.Attributes().Get("mysql.query_plan.hash")
 					assert.True(t, ok)
 					assert.Equal(t, "mysql.query_plan.hash-val", attrVal.Str())

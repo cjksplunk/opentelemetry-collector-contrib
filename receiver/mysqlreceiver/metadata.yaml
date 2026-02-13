@@ -132,11 +132,11 @@ attributes:
   mysql.query.hash:
     description: The statement digest SHA-256 value as a string of 64 hexadecimal characters, or empty if the statements_digest consumer is no.
     type: string
-  mysql.query_plan:
-    description: The query plan for the statement, if available.
-    type: string
   mysql.query_plan.hash:
     description: The SHA256 hash of the query plan for the statement, if available.
+    type: string
+  mysql.query_plan.text:
+    description: The query plan for the statement, if available.
     type: string
   mysql.threads.processlist_command:
     description: The type of command the thread is executing on behalf of the client for foreground threads, or `Sleep` if the session is idle.
@@ -255,7 +255,7 @@ events:
     attributes:
       - db.system.name
       - db.query.text
-      - mysql.query_plan
+      - mysql.query_plan.text
       - mysql.query_plan.hash
       - mysql.query.hash
       - mysql.operation.execution.count
