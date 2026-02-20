@@ -68,7 +68,7 @@ type eventDbServerTopQuery struct {
 	config EventConfig         // event config provided by user.
 }
 
-func (e *eventDbServerTopQuery) recordEvent(ctx context.Context, timestamp pcommon.Timestamp, dbSystemNameAttributeValue string, dbQueryTextAttributeValue string, mysqlQueryPlanAttributeValue string, mysqlQueryPlanHashAttributeValue string, mysqlQueryHashAttributeValue string, mysqlOperationExecutionCountAttributeValue int64, mysqlOperationDurationAttributeValue float64) {
+func (e *eventDbServerTopQuery) recordEvent(ctx context.Context, timestamp pcommon.Timestamp, dbSystemNameAttributeValue string, dbQueryTextAttributeValue string, mysqlQueryPlanTextAttributeValue string, mysqlQueryPlanHashAttributeValue string, mysqlQueryHashAttributeValue string, mysqlOperationExecutionCountAttributeValue int64, mysqlOperationDurationAttributeValue float64) {
 	if !e.config.Enabled {
 		return
 	}
@@ -82,7 +82,7 @@ func (e *eventDbServerTopQuery) recordEvent(ctx context.Context, timestamp pcomm
 	}
 	dp.Attributes().PutStr("db.system.name", dbSystemNameAttributeValue)
 	dp.Attributes().PutStr("db.query.text", dbQueryTextAttributeValue)
-	dp.Attributes().PutStr("mysql.query_plan", mysqlQueryPlanAttributeValue)
+	dp.Attributes().PutStr("mysql.query_plan.text", mysqlQueryPlanTextAttributeValue)
 	dp.Attributes().PutStr("mysql.query_plan.hash", mysqlQueryPlanHashAttributeValue)
 	dp.Attributes().PutStr("mysql.query.hash", mysqlQueryHashAttributeValue)
 	dp.Attributes().PutInt("mysql.operation.execution.count", mysqlOperationExecutionCountAttributeValue)
@@ -227,6 +227,6 @@ func (lb *LogsBuilder) RecordDbServerQuerySampleEvent(ctx context.Context, times
 }
 
 // RecordDbServerTopQueryEvent adds a log record of db.server.top_query event.
-func (lb *LogsBuilder) RecordDbServerTopQueryEvent(ctx context.Context, timestamp pcommon.Timestamp, dbSystemNameAttributeValue AttributeDbSystemName, dbQueryTextAttributeValue string, mysqlQueryPlanAttributeValue string, mysqlQueryPlanHashAttributeValue string, mysqlQueryHashAttributeValue string, mysqlOperationExecutionCountAttributeValue int64, mysqlOperationDurationAttributeValue float64) {
-	lb.eventDbServerTopQuery.recordEvent(ctx, timestamp, dbSystemNameAttributeValue.String(), dbQueryTextAttributeValue, mysqlQueryPlanAttributeValue, mysqlQueryPlanHashAttributeValue, mysqlQueryHashAttributeValue, mysqlOperationExecutionCountAttributeValue, mysqlOperationDurationAttributeValue)
+func (lb *LogsBuilder) RecordDbServerTopQueryEvent(ctx context.Context, timestamp pcommon.Timestamp, dbSystemNameAttributeValue AttributeDbSystemName, dbQueryTextAttributeValue string, mysqlQueryPlanTextAttributeValue string, mysqlQueryPlanHashAttributeValue string, mysqlQueryHashAttributeValue string, mysqlOperationExecutionCountAttributeValue int64, mysqlOperationDurationAttributeValue float64) {
+	lb.eventDbServerTopQuery.recordEvent(ctx, timestamp, dbSystemNameAttributeValue.String(), dbQueryTextAttributeValue, mysqlQueryPlanTextAttributeValue, mysqlQueryPlanHashAttributeValue, mysqlQueryHashAttributeValue, mysqlOperationExecutionCountAttributeValue, mysqlOperationDurationAttributeValue)
 }
