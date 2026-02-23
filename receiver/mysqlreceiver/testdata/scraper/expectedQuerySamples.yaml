@@ -33,6 +33,9 @@ resourceLogs:
               - key: mysql.wait_type
                 value:
                   stringValue: CPU
+              - key: mysql.session.status
+                value:
+                  stringValue: 'wait'
               - key: mysql.events_waits_current.timer_wait
                 value:
                   doubleValue: 1.2851652e-05
