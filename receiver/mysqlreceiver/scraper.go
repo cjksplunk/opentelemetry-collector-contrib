@@ -6,7 +6,9 @@ package mysqlreceiver // import "github.com/open-telemetry/opentelemetry-collect
 import (
 	"container/heap"
 	"context"
+	"crypto/sha256"
 	"errors"
+	"fmt"
 	"net"
 	"sort"
 	"strconv"
@@ -689,6 +691,13 @@ func (m *mySQLScraper) scrapeTopQueries(ctx context.Context, now pcommon.Timesta
 		}
 
 		queryPlan := m.sqlclient.explainQuery(q.querySampleText, q.schemaName, m.logger)
+		queryPlanHash := q.digest
+		if queryPlan != "" {
+			qph := sha256.New()
+			qph.Write([]byte(queryPlan))
+			queryPlanHash = fmt.Sprintf("%x", qph.Sum(nil))
+
+		}
 
 		var obfuscatedPlan string
 		var ok bool
@@ -706,6 +715,7 @@ func (m *mySQLScraper) scrapeTopQueries(ctx context.Context, now pcommon.Timesta
 			metadata.AttributeDbSystemNameMysql,
 			obfuscatedQuery,
 			obfuscatedPlan,
+			queryPlanHash,
 			q.digest,
 			countStarVal,
 			sumTimerWaitVal,

@@ -140,6 +140,9 @@ attributes:
   mysql.query_plan:
     description: The query plan for the statement, if available.
     type: string
+  mysql.query_plan.hash:
+    description: The hash value of the query plan for the statement, if available, otherwise the same value as the query digest.
+    type: string
   mysql.threads.processlist_command:
     description: The type of command the thread is executing on behalf of the client for foreground threads, or `Sleep` if the session is idle.
     type: string
@@ -265,6 +268,7 @@ events:
       - db.system.name
       - db.query.text
       - mysql.query_plan
+      - mysql.query_plan.hash
       - mysql.events_statements_summary_by_digest.digest
       - mysql.events_statements_summary_by_digest.count_star
       - mysql.events_statements_summary_by_digest.sum_timer_wait
