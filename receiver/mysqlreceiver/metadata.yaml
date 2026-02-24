@@ -16,6 +16,18 @@ resource_attributes:
     description: Endpoint of the MySQL instance.
     enabled: true
     type: string
+  service.instance.id:
+    description: The unique identifier of the MySQL instance, which defaults to the same value as mysql.instance.endpoint.
+    enabled: false
+    type: string
+  service.name:
+    description: The name of the service, which defaults to "mysql".
+    enabled: false
+    type: string
+  service.namespace:
+    description: The namespace of the service, which defaults to "default".
+    enabled: false
+    type: string
 
 attributes:
   buffer_pool_data:

@@ -65,7 +65,16 @@ func TestScrape(t *testing.T) {
 		cfg.LogsBuilderConfig.Events.DbServerQuerySample.Enabled = true
 		cfg.LogsBuilderConfig.Events.DbServerTopQuery.Enabled = true
 
+		// resource attriubtes
+		cfg.MetricsBuilderConfig.ResourceAttributes.ServiceInstanceID.Enabled = true
+		cfg.AddrConfig.Endpoint = "localhost:3306"
+		cfg.ResourceOverrides = map[string]string{
+			"service.name":      "mysql",
+			"service.namespace": "mynamespace",
+		}
+
 		scraper := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](100), newTTLCache[string](0, time.Hour*24*365*10))
+		scraper.resourceAttributeProcessor, _ = scraper.getResourceAttrProc()
 		scraper.sqlclient = &mockClient{
 			globalStatsFile:             "global_stats",
 			innodbStatsFile:             "innodb_stats",

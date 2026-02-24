@@ -9,6 +9,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
+
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/confmaptest"
 )
@@ -77,6 +78,9 @@ func TestMetricsBuilderConfig(t *testing.T) {
 				},
 				ResourceAttributes: ResourceAttributesConfig{
 					MysqlInstanceEndpoint: ResourceAttributeConfig{Enabled: true},
+					ServiceInstanceID:     ResourceAttributeConfig{Enabled: true},
+					ServiceName:           ResourceAttributeConfig{Enabled: true},
+					ServiceNamespace:      ResourceAttributeConfig{Enabled: true},
 				},
 			},
 		},
@@ -135,6 +139,9 @@ func TestMetricsBuilderConfig(t *testing.T) {
 				},
 				ResourceAttributes: ResourceAttributesConfig{
 					MysqlInstanceEndpoint: ResourceAttributeConfig{Enabled: false},
+					ServiceInstanceID:     ResourceAttributeConfig{Enabled: false},
+					ServiceName:           ResourceAttributeConfig{Enabled: false},
+					ServiceNamespace:      ResourceAttributeConfig{Enabled: false},
 				},
 			},
 		},
@@ -181,12 +188,18 @@ func TestResourceAttributesConfig(t *testing.T) {
 			name: "all_set",
 			want: ResourceAttributesConfig{
 				MysqlInstanceEndpoint: ResourceAttributeConfig{Enabled: true},
+				ServiceInstanceID:     ResourceAttributeConfig{Enabled: true},
+				ServiceName:           ResourceAttributeConfig{Enabled: true},
+				ServiceNamespace:      ResourceAttributeConfig{Enabled: true},
 			},
 		},
 		{
 			name: "none_set",
 			want: ResourceAttributesConfig{
 				MysqlInstanceEndpoint: ResourceAttributeConfig{Enabled: false},
+				ServiceInstanceID:     ResourceAttributeConfig{Enabled: false},
+				ServiceName:           ResourceAttributeConfig{Enabled: false},
+				ServiceNamespace:      ResourceAttributeConfig{Enabled: false},
 			},
 		},
 	}

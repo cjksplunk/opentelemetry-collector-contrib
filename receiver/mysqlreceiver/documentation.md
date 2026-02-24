@@ -727,3 +727,6 @@ This provides insights into query performance and resource usage, helping users 
 | Name | Description | Values | Enabled |
 | ---- | ----------- | ------ | ------- |
 | mysql.instance.endpoint | Endpoint of the MySQL instance. | Any Str | true |
+| service.instance.id | The unique identifier of the MySQL instance, which defaults to the same value as mysql.instance.endpoint. | Any Str | false |
+| service.name | The name of the service, which defaults to "mysql". | Any Str | false |
+| service.namespace | The namespace of the service, which defaults to "default". | Any Str | false |

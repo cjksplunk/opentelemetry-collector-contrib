@@ -1,5 +1,18 @@
 resourceLogs:
-  - resource: {}
+  - resource:
+      attributes:
+        - key: mysql.instance.endpoint
+          value:
+            stringValue: localhost:3306
+        - key: service.instance.id
+          value:
+            stringValue: localhost:3306
+        - key: service.name
+          value:
+            stringValue: mysql
+        - key: service.namespace
+          value:
+            stringValue: mynamespace
     scopeLogs:
       - logRecords:
           - attributes:
