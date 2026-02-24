@@ -1,13 +1,13 @@
 SELECT
-    thread.thread_id,
-    COALESCE(thread.processlist_user, ''),
-    COALESCE(processlist.host, ''),
-    COALESCE(thread.processlist_db, ''),
-    COALESCE(thread.processlist_command, ''),
-    COALESCE(thread.processlist_state, ''),
+    thread.thread_id, AS thread_id,
+    COALESCE(thread.processlist_user, '') AS user,
+    COALESCE(processlist.host, '') AS host,
+    COALESCE(thread.processlist_db, '')AS db,
+    COALESCE(thread.processlist_command, '') AS command,
+    COALESCE(thread.processlist_state, '') AS state,
     COALESCE(statement.sql_text, COALESCE(thread.PROCESSLIST_info, '')) AS sql_text,
-    COALESCE(statement.digest, ''),
-    COALESCE(wait.event_id, statement.event_id, 0),
+    COALESCE(statement.digest, '') AS digest,
+    COALESCE(wait.event_id, statement.event_id, 0) AS event_id,
     IF(wait.thread_id IS NULL,
         'other',
         COALESCE(
@@ -15,15 +15,20 @@ SELECT
             IF(wait.event_id = wait.end_event_id, 'CPU', wait.event_name)), 'CPU'
         )
     ) AS wait_event,
-    COALESCE(wait.timer_wait/1e12, 0)
+    COALESCE(wait.timer_wait/1e12, 0) AS wait_time_sec,
+    -- Extension: Get @traceparent from user_variables_by_thread
+    -- Use CONVERT for MySQL 8.0 which stores user variables as binary
+    COALESCE(CONVERT(uvt.VARIABLE_VALUE USING utf8), '') AS traceparent
 FROM
     performance_schema.threads AS thread
     LEFT JOIN performance_schema.events_statements_current AS statement ON statement.thread_id = thread.thread_id
     LEFT JOIN performance_schema.events_waits_current AS wait ON wait.thread_id = thread.thread_id
     LEFT JOIN information_schema.processlist AS processlist on processlist.id = thread.thread_id
+    -- Extension: Join user_variables_by_thread to get @traceparent
+    LEFT JOIN performance_schema.user_variables_by_thread AS uvt ON uvt.thread_id = thread.thread_id AND uvt.VARIABLE_NAME = 'traceparent'
 WHERE
     thread.processlist_state IS NOT NULL
-    AND thread.processlist_command != 'Sleep'
+    AND thread.processlist_command NOT IN ('Sleep', 'Daemon')
     AND thread.processlist_id != CONNECTION_ID()
     AND thread.PROCESSLIST_COMMAND != 'Daemon'
     AND (wait.EVENT_NAME != 'idle' OR wait.EVENT_NAME IS NULL)

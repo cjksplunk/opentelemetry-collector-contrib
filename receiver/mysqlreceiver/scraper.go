@@ -764,6 +764,7 @@ func (m *mySQLScraper) scrapeQuerySamples(ctx context.Context, now pcommon.Times
 			clientPort,
 			networkPeerAddress,
 			networkPeerPort,
+			sample.traceparent,
 		)
 	}
 }

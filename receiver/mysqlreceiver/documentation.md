@@ -694,6 +694,7 @@ This provides real-time visibility into active queries, helping users monitor da
 | client.port | TCP port used by the client. | Any Int |
 | network.peer.address | IP address of the peer client. | Any Str |
 | network.peer.port | TCP port used by the peer client. | Any Int |
+| trace.parent_id | The trace identifier of the parent event, if any. This requires the client to propagate the trace context, for example by including the traceparent in an application-level protocol. This value will be null if there is no parent event or if the client does not propagate the trace context. | Any Str |
 
 ## Optional Events
 

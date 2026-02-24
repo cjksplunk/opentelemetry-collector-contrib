@@ -225,6 +225,9 @@ attributes:
     description: The kind of temporary resources.
     type: string
     enum: [disk_tables, files, tables]
+  trace.parent_id:
+    description: The trace identifier of the parent event, if any. This requires the client to propagate the trace context, for example by including the traceparent in an application-level protocol. This value will be null if there is no parent event or if the client does not propagate the trace context.
+    type: string
   user.name:
     description: The user associated with a foreground thread, empty for a background thread (originally processlist_user).
     type: string
@@ -255,6 +258,7 @@ events:
       - client.port
       - network.peer.address
       - network.peer.port
+      - trace.parent_id
 
   db.server.top_query:
     enabled: false

@@ -4,7 +4,6 @@ package metadata
 
 import (
 	"context"
-
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/filter"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -18,7 +17,7 @@ type eventDbServerQuerySample struct {
 	config EventConfig         // event config provided by user.
 }
 
-func (e *eventDbServerQuerySample) recordEvent(ctx context.Context, timestamp pcommon.Timestamp, dbSystemNameAttributeValue string, mysqlThreadsThreadIDAttributeValue int64, userNameAttributeValue string, dbNamespaceAttributeValue string, mysqlThreadsProcesslistCommandAttributeValue string, mysqlThreadsProcesslistStateAttributeValue string, dbQueryTextAttributeValue string, mysqlEventsStatementsCurrentDigestAttributeValue string, mysqlEventIDAttributeValue int64, mysqlWaitTypeAttributeValue string, mysqlEventsWaitsCurrentTimerWaitAttributeValue float64, clientAddressAttributeValue string, clientPortAttributeValue int64, networkPeerAddressAttributeValue string, networkPeerPortAttributeValue int64) {
+func (e *eventDbServerQuerySample) recordEvent(ctx context.Context, timestamp pcommon.Timestamp, dbSystemNameAttributeValue string, mysqlThreadsThreadIDAttributeValue int64, userNameAttributeValue string, dbNamespaceAttributeValue string, mysqlThreadsProcesslistCommandAttributeValue string, mysqlThreadsProcesslistStateAttributeValue string, dbQueryTextAttributeValue string, mysqlEventsStatementsCurrentDigestAttributeValue string, mysqlEventIDAttributeValue int64, mysqlWaitTypeAttributeValue string, mysqlEventsWaitsCurrentTimerWaitAttributeValue float64, clientAddressAttributeValue string, clientPortAttributeValue int64, networkPeerAddressAttributeValue string, networkPeerPortAttributeValue int64, traceParentIDAttributeValue string) {
 	if !e.config.Enabled {
 		return
 	}
@@ -45,6 +44,7 @@ func (e *eventDbServerQuerySample) recordEvent(ctx context.Context, timestamp pc
 	dp.Attributes().PutInt("client.port", clientPortAttributeValue)
 	dp.Attributes().PutStr("network.peer.address", networkPeerAddressAttributeValue)
 	dp.Attributes().PutInt("network.peer.port", networkPeerPortAttributeValue)
+	dp.Attributes().PutStr("trace.parent_id", traceParentIDAttributeValue)
 
 }
 
@@ -221,8 +221,8 @@ func (lb *LogsBuilder) Emit(options ...ResourceLogsOption) plog.Logs {
 }
 
 // RecordDbServerQuerySampleEvent adds a log record of db.server.query_sample event.
-func (lb *LogsBuilder) RecordDbServerQuerySampleEvent(ctx context.Context, timestamp pcommon.Timestamp, dbSystemNameAttributeValue AttributeDbSystemName, mysqlThreadsThreadIDAttributeValue int64, userNameAttributeValue string, dbNamespaceAttributeValue string, mysqlThreadsProcesslistCommandAttributeValue string, mysqlThreadsProcesslistStateAttributeValue string, dbQueryTextAttributeValue string, mysqlEventsStatementsCurrentDigestAttributeValue string, mysqlEventIDAttributeValue int64, mysqlWaitTypeAttributeValue string, mysqlEventsWaitsCurrentTimerWaitAttributeValue float64, clientAddressAttributeValue string, clientPortAttributeValue int64, networkPeerAddressAttributeValue string, networkPeerPortAttributeValue int64) {
-	lb.eventDbServerQuerySample.recordEvent(ctx, timestamp, dbSystemNameAttributeValue.String(), mysqlThreadsThreadIDAttributeValue, userNameAttributeValue, dbNamespaceAttributeValue, mysqlThreadsProcesslistCommandAttributeValue, mysqlThreadsProcesslistStateAttributeValue, dbQueryTextAttributeValue, mysqlEventsStatementsCurrentDigestAttributeValue, mysqlEventIDAttributeValue, mysqlWaitTypeAttributeValue, mysqlEventsWaitsCurrentTimerWaitAttributeValue, clientAddressAttributeValue, clientPortAttributeValue, networkPeerAddressAttributeValue, networkPeerPortAttributeValue)
+func (lb *LogsBuilder) RecordDbServerQuerySampleEvent(ctx context.Context, timestamp pcommon.Timestamp, dbSystemNameAttributeValue AttributeDbSystemName, mysqlThreadsThreadIDAttributeValue int64, userNameAttributeValue string, dbNamespaceAttributeValue string, mysqlThreadsProcesslistCommandAttributeValue string, mysqlThreadsProcesslistStateAttributeValue string, dbQueryTextAttributeValue string, mysqlEventsStatementsCurrentDigestAttributeValue string, mysqlEventIDAttributeValue int64, mysqlWaitTypeAttributeValue string, mysqlEventsWaitsCurrentTimerWaitAttributeValue float64, clientAddressAttributeValue string, clientPortAttributeValue int64, networkPeerAddressAttributeValue string, networkPeerPortAttributeValue int64, traceParentIDAttributeValue string) {
+	lb.eventDbServerQuerySample.recordEvent(ctx, timestamp, dbSystemNameAttributeValue.String(), mysqlThreadsThreadIDAttributeValue, userNameAttributeValue, dbNamespaceAttributeValue, mysqlThreadsProcesslistCommandAttributeValue, mysqlThreadsProcesslistStateAttributeValue, dbQueryTextAttributeValue, mysqlEventsStatementsCurrentDigestAttributeValue, mysqlEventIDAttributeValue, mysqlWaitTypeAttributeValue, mysqlEventsWaitsCurrentTimerWaitAttributeValue, clientAddressAttributeValue, clientPortAttributeValue, networkPeerAddressAttributeValue, networkPeerPortAttributeValue, traceParentIDAttributeValue)
 }
 
 // RecordDbServerTopQueryEvent adds a log record of db.server.top_query event.

@@ -209,6 +209,7 @@ type querySample struct {
 	eventID            int64
 	waitEvent          string
 	waitTime           float64
+	traceparent        string
 }
 
 type topQuery struct {

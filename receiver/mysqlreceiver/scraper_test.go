@@ -501,6 +501,7 @@ func (c *mockClient) getQuerySamples(uint64) ([]querySample, error) {
 		s.eventID, _ = parseInt(text[8])
 		s.waitEvent = text[9]
 		s.waitTime, _ = strconv.ParseFloat(text[10], 64)
+		s.traceparent = text[11]
 
 		samples = append(samples, s)
 	}
