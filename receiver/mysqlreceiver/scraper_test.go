@@ -67,7 +67,7 @@ func TestScrape(t *testing.T) {
 
 		// resource attriubtes
 		cfg.MetricsBuilderConfig.ResourceAttributes.ServiceInstanceID.Enabled = true
-		cfg.AddrConfig.Endpoint = "localhost:3306"
+		cfg.Endpoint = "localhost:3306"
 		cfg.ResourceOverrides = map[string]string{
 			"service.name":      "mysql",
 			"service.namespace": "mynamespace",

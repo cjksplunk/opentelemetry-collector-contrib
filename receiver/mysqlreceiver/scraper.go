@@ -901,9 +901,9 @@ func (m *mySQLScraper) applyResouceOverides(ctx context.Context, resource pcommo
 
 func (m *mySQLScraper) getResource(ctx context.Context) pcommon.Resource {
 	rb := m.mb.NewResourceBuilder()
-	rb.SetMysqlInstanceEndpoint(m.config.AddrConfig.Endpoint)
-	rb.SetServiceInstanceID(m.config.AddrConfig.Endpoint)
-	rb.SetServiceName(metadata.AttributeDbSystemName.String(metadata.AttributeDbSystemNameMysql))
+	rb.SetMysqlInstanceEndpoint(m.config.Endpoint)
+	rb.SetServiceInstanceID(m.config.Endpoint)
+	rb.SetServiceName(metadata.AttributeDbSystemNameMysql.String())
 	rb.SetServiceNamespace("default")
 	return m.applyResouceOverides(ctx, rb.Emit())
 }
