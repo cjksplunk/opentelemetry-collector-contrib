@@ -777,6 +777,7 @@ func (c *mySQLClient) getQuerySamples(limit uint64) ([]querySample, error) {
 			&s.eventID,
 			&s.waitEvent,
 			&s.waitTime,
+			&s.traceparent,
 		)
 		if err != nil {
 			return nil, err
