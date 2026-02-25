@@ -894,7 +894,7 @@ func (m *mySQLScraper) getResourceAttrProc() (attraction.AttrProc, error) {
 	return *attrProc, nil
 }
 
-func (m *mySQLScraper) applyResouceOverides(ctx context.Context, resource pcommon.Resource) pcommon.Resource {
+func (m *mySQLScraper) applyResouceOverrides(ctx context.Context, resource pcommon.Resource) pcommon.Resource {
 	m.resourceAttributeProcessor.Process(ctx, m.logger, resource.Attributes())
 	return resource
 }
@@ -905,5 +905,5 @@ func (m *mySQLScraper) getResource(ctx context.Context) pcommon.Resource {
 	rb.SetServiceInstanceID(m.config.Endpoint)
 	rb.SetServiceName(metadata.AttributeDbSystemNameMysql.String())
 	rb.SetServiceNamespace("default")
-	return m.applyResouceOverides(ctx, rb.Emit())
+	return m.applyResouceOverrides(ctx, rb.Emit())
 }
