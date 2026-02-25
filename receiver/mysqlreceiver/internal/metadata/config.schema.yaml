@@ -254,3 +254,9 @@ $defs:
     properties:
       mysql.instance.endpoint:
         $ref: resource_attribute_config
+      service.instance.id:
+        $ref: resource_attribute_config
+      service.name:
+        $ref: resource_attribute_config
+      service.namespace:
+        $ref: resource_attribute_config
