@@ -696,7 +696,6 @@ func (m *mySQLScraper) scrapeTopQueries(ctx context.Context, now pcommon.Timesta
 			qph := sha256.New()
 			qph.Write([]byte(queryPlan))
 			queryPlanHash = fmt.Sprintf("%x", qph.Sum(nil))
-
 		}
 
 		var obfuscatedPlan string
