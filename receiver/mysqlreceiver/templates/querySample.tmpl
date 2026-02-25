@@ -1,8 +1,8 @@
 SELECT
-    thread.thread_id, AS thread_id,
+    thread.thread_id AS thread_id,
     COALESCE(thread.processlist_user, '') AS user,
     COALESCE(processlist.host, '') AS host,
-    COALESCE(thread.processlist_db, '')AS db,
+    COALESCE(thread.processlist_db, '') AS db,
     COALESCE(thread.processlist_command, '') AS command,
     COALESCE(thread.processlist_state, '') AS state,
     COALESCE(statement.sql_text, COALESCE(thread.PROCESSLIST_info, '')) AS sql_text,
@@ -30,7 +30,6 @@ WHERE
     thread.processlist_state IS NOT NULL
     AND thread.processlist_command NOT IN ('Sleep', 'Daemon')
     AND thread.processlist_id != CONNECTION_ID()
-    AND thread.PROCESSLIST_COMMAND != 'Daemon'
     AND (wait.EVENT_NAME != 'idle' OR wait.EVENT_NAME IS NULL)
     AND (wait.operation != 'idle' OR wait.operation IS NULL)
     -- events_waits_current can have multiple rows per thread, thus we use EVENT_ID to identify the row we want to use.
