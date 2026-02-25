@@ -56,6 +56,7 @@ func createDefaultConfig() component.Config {
 		QuerySampleCollection: QuerySampleCollection{
 			MaxRowsPerQuery: 100,
 		},
+		ResourceOverrides: map[string]string{},
 	}
 }
 
