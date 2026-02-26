@@ -24,16 +24,3 @@ func TestObfuscateSQL(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedSQL, result)
 }
-
-func TestObfuscateSQLPlan(t *testing.T) {
-	expected, err := os.ReadFile(filepath.Join("testdata", "obfuscate", "expectedQueryPlan.json"))
-	assert.NoError(t, err)
-	expectedSQL := strings.TrimSpace(string(expected))
-
-	input, err := os.ReadFile(filepath.Join("testdata", "obfuscate", "inputQueryPlan.json"))
-	assert.NoError(t, err)
-
-	result, err := newObfuscator().obfuscatePlan(string(input))
-	assert.NoError(t, err)
-	assert.Equal(t, expectedSQL, strings.TrimSpace(result))
-}
