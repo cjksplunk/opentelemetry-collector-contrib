@@ -760,6 +760,7 @@ func (m *mySQLScraper) scrapeQuerySamples(ctx context.Context, now pcommon.Times
 			sample.eventID,
 			sample.waitEvent,
 			sample.sessionStatus,
+			sample.sessionID,
 			sample.waitTime,
 			clientAddress,
 			clientPort,

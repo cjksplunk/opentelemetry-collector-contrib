@@ -143,6 +143,9 @@ attributes:
   mysql.session.status:
     description: Simplified session status, either 'waiting', 'running' or 'other'.
     type: string
+  mysql.session_id:
+    description: The unique identifier for the session associated with the event.
+    type: int
   mysql.threads.processlist_command:
     description: The type of command the thread is executing on behalf of the client for foreground threads, or `Sleep` if the session is idle.
     type: string
@@ -254,6 +257,7 @@ events:
       - mysql.event_id
       - mysql.wait_type
       - mysql.session.status
+      - mysql.session_id
       - mysql.events_waits_current.timer_wait
       - client.address
       - client.port
