@@ -6,9 +6,7 @@ package mysqlreceiver // import "github.com/open-telemetry/opentelemetry-collect
 import (
 	"container/heap"
 	"context"
-	"crypto/sha256"
 	"errors"
-	"fmt"
 	"net"
 	"sort"
 	"strconv"
@@ -691,21 +689,9 @@ func (m *mySQLScraper) scrapeTopQueries(ctx context.Context, now pcommon.Timesta
 		}
 
 		queryPlan := m.sqlclient.explainQuery(q.querySampleText, q.schemaName, m.logger)
-		queryPlanHash := q.digest
-		if queryPlan != "" {
-			qph := sha256.New()
-			qph.Write([]byte(queryPlan))
-			queryPlanHash = fmt.Sprintf("%x", qph.Sum(nil))
-		}
 
-		var obfuscatedPlan string
-		var ok bool
-		if obfuscatedPlan, ok = m.queryPlanCache.Get(q.schemaName + "-" + q.digest); !ok {
-			obfuscatedPlan, err = m.obfuscator.obfuscatePlan(queryPlan)
-			if err != nil {
-				m.logger.Error("Failed to obfuscate query", zap.Error(err))
-			}
-			m.queryPlanCache.Add(q.schemaName+"-"+q.digest, obfuscatedPlan)
+		if _, ok := m.queryPlanCache.Get(q.digest); !ok {
+			m.queryPlanCache.Add(q.digest, queryPlan)
 		}
 
 		m.lb.RecordDbServerTopQueryEvent(
@@ -713,8 +699,8 @@ func (m *mySQLScraper) scrapeTopQueries(ctx context.Context, now pcommon.Timesta
 			now,
 			metadata.AttributeDbSystemNameMysql,
 			obfuscatedQuery,
-			obfuscatedPlan,
-			queryPlanHash,
+			queryPlan,
+			q.digest,
 			q.digest,
 			countStarVal,
 			sumTimerWaitVal,
