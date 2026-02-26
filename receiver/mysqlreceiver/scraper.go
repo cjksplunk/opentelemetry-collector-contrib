@@ -133,7 +133,7 @@ func (m *mySQLScraper) scrape(context.Context) (pmetric.Metrics, error) {
 
 func (m *mySQLScraper) scrapeTopQueryFunc(ctx context.Context) (plog.Logs, error) {
 	if m.sqlclient == nil {
-		return plog.NewLogs(), errors.New("failed to connect to http client")
+		return plog.NewLogs(), errors.New("failed to connect to MySQL client")
 	}
 
 	errs := &scrapererror.ScrapeErrors{}
@@ -150,7 +150,7 @@ func (m *mySQLScraper) scrapeTopQueryFunc(ctx context.Context) (plog.Logs, error
 
 func (m *mySQLScraper) scrapeQuerySampleFunc(ctx context.Context) (plog.Logs, error) {
 	if m.sqlclient == nil {
-		return plog.NewLogs(), errors.New("failed to connect to http client")
+		return plog.NewLogs(), errors.New("failed to connect to MySQL client")
 	}
 
 	errs := &scrapererror.ScrapeErrors{}
@@ -688,9 +688,10 @@ func (m *mySQLScraper) scrapeTopQueries(ctx context.Context, now pcommon.Timesta
 			m.logger.Error("Failed to obfuscate query", zap.Error(err))
 		}
 
-		queryPlan := m.sqlclient.explainQuery(q.querySampleText, q.schemaName, m.logger)
-
-		if _, ok := m.queryPlanCache.Get(q.digest); !ok {
+		queryPlan := ""
+		ok := false
+		if queryPlan, ok = m.queryPlanCache.Get(q.digest); !ok {
+			queryPlan = m.sqlclient.explainQuery(q.querySampleText, q.schemaName, m.logger)
 			m.queryPlanCache.Add(q.digest, queryPlan)
 		}
 
