@@ -10,6 +10,7 @@ import (
 	"net"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -20,6 +21,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/scraper/scrapererror"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/priorityqueue"
@@ -746,8 +749,18 @@ func (m *mySQLScraper) scrapeQuerySamples(ctx context.Context, now pcommon.Times
 			m.logger.Error("Failed to obfuscate query", zap.Error(err))
 		}
 
+		recordCtx := contextWithTraceparent(ctx, sample.traceparent)
+		if sample.traceparent != "" {
+			if _, _, ok := validateTraceparent(sample.traceparent); ok {
+				recordCtx = propagation.TraceContext{}.Extract(ctx, propagation.MapCarrier{
+					"traceparent": sample.traceparent,
+				})
+			} else {
+				m.logger.Warn("Invalid traceparent; omitting trace context", zap.String("presented-traceparent", sample.traceparent))
+			}
+		}
 		m.lb.RecordDbServerQuerySampleEvent(
-			ctx,
+			recordCtx,
 			now,
 			metadata.AttributeDbSystemNameMysql,
 			sample.threadID,
@@ -764,9 +777,18 @@ func (m *mySQLScraper) scrapeQuerySamples(ctx context.Context, now pcommon.Times
 			clientPort,
 			networkPeerAddress,
 			networkPeerPort,
-			sample.traceparent,
 		)
 	}
+}
+
+func contextWithTraceparent(ctx context.Context, traceparent string) context.Context {
+	if traceparent == "" {
+		return ctx
+	}
+
+	return propagation.TraceContext{}.Extract(ctx, propagation.MapCarrier{
+		"traceparent": traceparent,
+	})
 }
 
 func addPartialIfError(errors *scrapererror.ScrapeErrors, err error) {
@@ -864,4 +886,33 @@ func sortTopQueries(queries []topQuery, values []int64, maximum uint64) []topQue
 		results = append(results, item.Value)
 	}
 	return results
+}
+
+func validateTraceparent(tp string) (trace.TraceID, trace.SpanID, bool) {
+	parts := strings.Split(tp, "-")
+	if len(parts) != 4 {
+		return trace.TraceID{}, trace.SpanID{}, false
+	}
+	if parts[0] != "00" { // receiver can restrict to current version
+		return trace.TraceID{}, trace.SpanID{}, false
+	}
+
+	tid, err := trace.TraceIDFromHex(parts[1])
+	if err != nil || !tid.IsValid() {
+		return trace.TraceID{}, trace.SpanID{}, false
+	}
+	sid, err := trace.SpanIDFromHex(parts[2])
+	if err != nil || !sid.IsValid() {
+		return trace.TraceID{}, trace.SpanID{}, false
+	}
+
+	// flags must be 2 hex chars
+	if len(parts[3]) != 2 {
+		return trace.TraceID{}, trace.SpanID{}, false
+	}
+	if _, err := strconv.ParseUint(parts[3], 16, 8); err != nil {
+		return trace.TraceID{}, trace.SpanID{}, false
+	}
+
+	return tid, sid, true
 }

@@ -98,6 +98,7 @@ Details about the metrics produced by this receiver can be found in [metadata.ya
 ## Logs
 Details about the logs produced by this receiver can be found in [documentation.md](./documentation.md)
 
+NOTE: if `traceparent` is set on a query, samples collection will now map that value to the existing Open Telemetry TraceID and SpanID for the corresponding log record. This enables the ability to trace application transactions to measured events produced by this receiver.
 ### MySQL Requirements to enable log collection
 
 | Parameter                                | Value                            | Description                                         |

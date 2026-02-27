@@ -19,6 +19,7 @@ import (
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/receiver/receivertest"
 	"go.opentelemetry.io/collector/scraper/scrapererror"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden"
@@ -99,7 +100,11 @@ func TestScrape(t *testing.T) {
 		expectedQuerySample, err := golden.ReadLogs(expectedQuerySampleFile)
 		require.NoError(t, err)
 
-		require.NoError(t, plogtest.CompareLogs(actualQuerySamples, expectedQuerySample,
+		require.Equal(t, expectedQuerySample.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0).TraceID(),
+			actualQuerySamples.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0).TraceID(), "TraceID values do not match")
+		require.Equal(t, expectedQuerySample.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0).SpanID(),
+			actualQuerySamples.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0).SpanID(), "SpanID values do not match")
+		require.NoError(t, plogtest.CompareLogs(expectedQuerySample, actualQuerySamples,
 			plogtest.IgnoreTimestamp()))
 
 		// Scrape top queries
@@ -188,6 +193,28 @@ func TestScrapeBufferPoolPagesMiscOutOfBounds(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, pmetrictest.CompareMetrics(expectedMetrics, actualMetrics,
 		pmetrictest.IgnoreMetricDataPointsOrder(), pmetrictest.IgnoreStartTimestamp(), pmetrictest.IgnoreTimestamp()))
+}
+
+func TestContextWithTraceparent(t *testing.T) {
+	t.Run("valid traceparent sets span context", func(t *testing.T) {
+		ctx := contextWithTraceparent(t.Context(), "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+		spanCtx := trace.SpanContextFromContext(ctx)
+		require.True(t, spanCtx.IsValid())
+		assert.Equal(t, "4bf92f3577b34da6a3ce929d0e0e4736", spanCtx.TraceID().String())
+		assert.Equal(t, "00f067aa0ba902b7", spanCtx.SpanID().String())
+	})
+
+	t.Run("empty traceparent leaves context unchanged", func(t *testing.T) {
+		ctx := contextWithTraceparent(t.Context(), "")
+		spanCtx := trace.SpanContextFromContext(ctx)
+		assert.False(t, spanCtx.IsValid())
+	})
+
+	t.Run("invalid traceparent does not set span context", func(t *testing.T) {
+		ctx := contextWithTraceparent(t.Context(), "trace-id")
+		spanCtx := trace.SpanContextFromContext(ctx)
+		assert.False(t, spanCtx.IsValid())
+	})
 }
 
 var _ client = (*mockClient)(nil)
