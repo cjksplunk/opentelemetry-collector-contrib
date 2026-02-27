@@ -217,6 +217,18 @@ func TestContextWithTraceparent(t *testing.T) {
 	})
 }
 
+func TestValidateTraceparent(t *testing.T) {
+	t.Run("accepts non-zero version", func(t *testing.T) {
+		_, _, ok := validateTraceparent("01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+		assert.True(t, ok)
+	})
+
+	t.Run("rejects ff version", func(t *testing.T) {
+		_, _, ok := validateTraceparent("ff-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+		assert.False(t, ok)
+	})
+}
+
 var _ client = (*mockClient)(nil)
 
 type mockClient struct {

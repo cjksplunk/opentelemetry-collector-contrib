@@ -749,12 +749,10 @@ func (m *mySQLScraper) scrapeQuerySamples(ctx context.Context, now pcommon.Times
 			m.logger.Error("Failed to obfuscate query", zap.Error(err))
 		}
 
-		recordCtx := contextWithTraceparent(ctx, sample.traceparent)
+		recordCtx := ctx
 		if sample.traceparent != "" {
 			if _, _, ok := validateTraceparent(sample.traceparent); ok {
-				recordCtx = propagation.TraceContext{}.Extract(ctx, propagation.MapCarrier{
-					"traceparent": sample.traceparent,
-				})
+				recordCtx = contextWithTraceparent(ctx, sample.traceparent)
 			} else {
 				m.logger.Warn("Invalid traceparent; omitting trace context", zap.String("presented-traceparent", sample.traceparent))
 			}
@@ -890,10 +888,19 @@ func sortTopQueries(queries []topQuery, values []int64, maximum uint64) []topQue
 
 func validateTraceparent(tp string) (trace.TraceID, trace.SpanID, bool) {
 	parts := strings.Split(tp, "-")
-	if len(parts) != 4 {
+	if len(parts) < 4 {
 		return trace.TraceID{}, trace.SpanID{}, false
 	}
-	if parts[0] != "00" { // receiver can restrict to current version
+
+	if len(parts[0]) != 2 {
+		return trace.TraceID{}, trace.SpanID{}, false
+	}
+	version, err := strconv.ParseUint(parts[0], 16, 8)
+	if err != nil || version == 0xff {
+		return trace.TraceID{}, trace.SpanID{}, false
+	}
+	// Version 00 must contain exactly 4 fields.
+	if version == 0 && len(parts) != 4 {
 		return trace.TraceID{}, trace.SpanID{}, false
 	}
 
