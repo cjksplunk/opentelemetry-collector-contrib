@@ -141,7 +141,7 @@ attributes:
     description: The query plan for the statement, if available.
     type: string
   mysql.query_plan.hash:
-    description: The hash value of the query plan for the statement, if available, otherwise the same value as the query digest.
+    description: This attribute is set to the same value as mysql.events_statements_summary_by_digest.digest (query digest) by design.
     type: string
   mysql.threads.processlist_command:
     description: The type of command the thread is executing on behalf of the client for foreground threads, or `Sleep` if the session is idle.
