@@ -71,7 +71,16 @@ The following settings are optional:
   - `query_plan_cache_size`: (optional, default = `1000`). The query plan cache size. Once we got query plan results from explain queries, we will store them in the cache.
     This defines the cache's size for query plan.
   - `query_plan_cache_ttl`: (optional, example = `1m`, default = `1h`). How long until a query plan expires in the cache. The receiver will run an explain query to MySQL to get the query plan after it expires.
-  - `resource_attributes_override`: (optional) A map of resource attributes to override or add to a receiver instance. This is useful when you have multiple instances of the same receiver and want to differentiate them by adding custom resource attributes. For example, you can add an attribute `instance: mysql-1` to one instance and `instance: mysql-2` to another instance. This implementation uses the same logic as resource and attributes processors in an UPSERT mode.
+- `resource_attributes_override`: (optional) A map of resource attributes to override or add to a receiver instance. This is useful when you have multiple instances of the same receiver and want to differentiate them by adding custom resource attributes. This implementation uses the same logic as resource and attributes processors in UPSERT mode.
+
+Resource attributes:
+- `mysql.instance.endpoint` is enabled by default.
+- `service.instance.id`, `service.name`, and `service.namespace` are available resource attributes and are disabled by default.
+- If enabled, their default values are:
+  - `service.instance.id`: same value as `mysql.instance.endpoint`
+  - `service.name`: `mysql`
+  - `service.namespace`: `default`
+- `resource_attributes_override` can override any of these values.
 
 ### Example Configuration
 
