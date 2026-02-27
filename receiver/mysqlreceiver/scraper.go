@@ -76,6 +76,8 @@ func (m *mySQLScraper) start(_ context.Context, _ component.Host) error {
 
 	attrProc, err := m.getResourceAttrProc()
 	if err != nil {
+		_ = sqlclient.Close()
+		m.sqlclient = nil
 		return err
 	}
 	m.resourceAttributeProcessor = attrProc
@@ -889,7 +891,7 @@ func (m *mySQLScraper) getResourceAttrProc() (attraction.AttrProc, error) {
 	attrProc, err := attraction.NewAttrProc(&settings)
 	if err != nil {
 		m.logger.Warn("Failed to create attr proc", zap.Error(err))
-		return *attrProc, err
+		return attraction.AttrProc{}, err
 	}
 	return *attrProc, nil
 }
