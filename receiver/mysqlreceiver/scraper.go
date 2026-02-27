@@ -751,7 +751,7 @@ func (m *mySQLScraper) scrapeQuerySamples(ctx context.Context, now pcommon.Times
 
 		recordCtx := ctx
 		if sample.traceparent != "" {
-			if _, _, ok := validateTraceparent(sample.traceparent); ok {
+			if ok := validateTraceparent(sample.traceparent); ok {
 				recordCtx = contextWithTraceparent(ctx, sample.traceparent)
 			} else {
 				m.logger.Warn("Invalid traceparent; omitting trace context", zap.String("presented-traceparent", sample.traceparent))
@@ -886,40 +886,40 @@ func sortTopQueries(queries []topQuery, values []int64, maximum uint64) []topQue
 	return results
 }
 
-func validateTraceparent(tp string) (trace.TraceID, trace.SpanID, bool) {
+func validateTraceparent(tp string) bool {
 	parts := strings.Split(tp, "-")
 	if len(parts) < 4 {
-		return trace.TraceID{}, trace.SpanID{}, false
+		return false
 	}
 
 	if len(parts[0]) != 2 {
-		return trace.TraceID{}, trace.SpanID{}, false
+		return false
 	}
 	version, err := strconv.ParseUint(parts[0], 16, 8)
 	if err != nil || version == 0xff {
-		return trace.TraceID{}, trace.SpanID{}, false
+		return false
 	}
 	// Version 00 must contain exactly 4 fields.
 	if version == 0 && len(parts) != 4 {
-		return trace.TraceID{}, trace.SpanID{}, false
+		return false
 	}
 
 	tid, err := trace.TraceIDFromHex(parts[1])
 	if err != nil || !tid.IsValid() {
-		return trace.TraceID{}, trace.SpanID{}, false
+		return false
 	}
 	sid, err := trace.SpanIDFromHex(parts[2])
 	if err != nil || !sid.IsValid() {
-		return trace.TraceID{}, trace.SpanID{}, false
+		return false
 	}
 
 	// flags must be 2 hex chars
 	if len(parts[3]) != 2 {
-		return trace.TraceID{}, trace.SpanID{}, false
+		return false
 	}
 	if _, err := strconv.ParseUint(parts[3], 16, 8); err != nil {
-		return trace.TraceID{}, trace.SpanID{}, false
+		return false
 	}
 
-	return tid, sid, true
+	return true
 }
