@@ -9,7 +9,7 @@ component:
     receiver/mysql
 # A brief description of the change.  Surround your text with quotes ("") if it needs to start with a backtick (`).
 note:
-  adding trace.parent_id to the query sample event. This will allow users to correlate the query sample with the trace of the request that triggered it, providing better visibility into the performance of their MySQL queries.
+  Setting the value of `traceparent`, if set in a query, to the TraceID and SpanID samples log event. This will allow users to correlate the query sample with the trace of the request that triggered it, providing better visibility into the performance of their MySQL queries.
 # Mandatory: One or more tracking issues related to the change. You can use the PR number here if no issue exists.
 issues: [135349]
 
