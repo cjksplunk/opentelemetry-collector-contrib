@@ -197,7 +197,9 @@ func TestScrapeBufferPoolPagesMiscOutOfBounds(t *testing.T) {
 
 func TestContextWithTraceparent(t *testing.T) {
 	t.Run("valid traceparent sets span context", func(t *testing.T) {
-		ctx := contextWithTraceparent(t.Context(), "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+		ctx, err := contextWithTraceparent(t.Context(), "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+		require.NoError(t, err)
+		assert.NotEqual(t, ctx, t.Context())
 		spanCtx := trace.SpanContextFromContext(ctx)
 		require.True(t, spanCtx.IsValid())
 		assert.Equal(t, "4bf92f3577b34da6a3ce929d0e0e4736", spanCtx.TraceID().String())
@@ -205,13 +207,17 @@ func TestContextWithTraceparent(t *testing.T) {
 	})
 
 	t.Run("empty traceparent leaves context unchanged", func(t *testing.T) {
-		ctx := contextWithTraceparent(t.Context(), "")
+		ctx, err := contextWithTraceparent(t.Context(), "")
+		require.NoError(t, err)
+		assert.Equal(t, ctx, t.Context())
 		spanCtx := trace.SpanContextFromContext(ctx)
 		assert.False(t, spanCtx.IsValid())
 	})
 
 	t.Run("invalid traceparent does not set span context", func(t *testing.T) {
-		ctx := contextWithTraceparent(t.Context(), "trace-id")
+		ctx, err := contextWithTraceparent(t.Context(), "trace-id")
+		require.Error(t, err)
+		assert.Equal(t, ctx, t.Context())
 		spanCtx := trace.SpanContextFromContext(ctx)
 		assert.False(t, spanCtx.IsValid())
 	})

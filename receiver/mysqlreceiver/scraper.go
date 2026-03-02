@@ -7,6 +7,7 @@ import (
 	"container/heap"
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"sort"
 	"strconv"
@@ -751,12 +752,12 @@ func (m *mySQLScraper) scrapeQuerySamples(ctx context.Context, now pcommon.Times
 
 		recordCtx := ctx
 		if sample.traceparent != "" {
-			if ok := validateTraceparent(sample.traceparent); ok {
-				recordCtx = contextWithTraceparent(ctx, sample.traceparent)
-			} else {
+			recordCtx, err = contextWithTraceparent(recordCtx, sample.traceparent)
+			if err != nil {
 				m.logger.Warn("Invalid traceparent; omitting trace context", zap.String("presented-traceparent", sample.traceparent))
 			}
 		}
+
 		m.lb.RecordDbServerQuerySampleEvent(
 			recordCtx,
 			now,
@@ -779,14 +780,18 @@ func (m *mySQLScraper) scrapeQuerySamples(ctx context.Context, now pcommon.Times
 	}
 }
 
-func contextWithTraceparent(ctx context.Context, traceparent string) context.Context {
+func contextWithTraceparent(ctx context.Context, traceparent string) (context.Context, error) {
 	if traceparent == "" {
-		return ctx
+		return ctx, nil
 	}
 
-	return propagation.TraceContext{}.Extract(ctx, propagation.MapCarrier{
+	newCtx := propagation.TraceContext{}.Extract(context.Background(), propagation.MapCarrier{
 		"traceparent": traceparent,
 	})
+	if trace.SpanContextFromContext(newCtx).IsValid() {
+		return newCtx, nil
+	}
+	return ctx, errors.New(fmt.Sprintf("invalid traceparent - %s", traceparent))
 }
 
 func addPartialIfError(errors *scrapererror.ScrapeErrors, err error) {
