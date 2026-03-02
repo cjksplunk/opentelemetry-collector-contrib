@@ -29,6 +29,14 @@ func (o *obfuscator) obfuscateSQLString(sql string) (string, error) {
 	return obfuscatedQuery.Query, nil
 }
 
+func (o *obfuscator) obfuscatePlan(plan string) (string, error) {
+	obfuscated, err := (*obfuscate.Obfuscator)(o).ObfuscateSQLExecPlan(plan, false)
+	if err != nil {
+		return "", err
+	}
+	return obfuscated, nil
+}
+
 // defaultSQLPlanNormalizeSettings are the default JSON obfuscator settings for both obfuscating and normalizing SQL
 // execution plans
 var defaultSQLPlanNormalizeSettings = obfuscate.JSONConfig{
