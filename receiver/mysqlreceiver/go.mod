@@ -47,26 +47,15 @@ require (
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
 	github.com/shirou/gopsutil/v4 v4.25.6 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-<<<<<<< mysql-add-service-resource-attributes
-	go.opentelemetry.io/collector/client v1.52.1-0.20260227062254-168030d61d7d // indirect
-	go.opentelemetry.io/collector/consumer/consumererror v0.146.2-0.20260227062254-168030d61d7d // indirect
-	go.opentelemetry.io/collector/consumer/xconsumer v0.146.2-0.20260227062254-168030d61d7d // indirect
-	go.opentelemetry.io/collector/featuregate v1.52.1-0.20260227062254-168030d61d7d // indirect
-	go.opentelemetry.io/collector/internal/componentalias v0.146.2-0.20260227062254-168030d61d7d // indirect
-	go.opentelemetry.io/collector/pdata/xpdata v0.146.2-0.20260227062254-168030d61d7d // indirect
-	go.opentelemetry.io/collector/pipeline/xpipeline v0.146.2-0.20260227062254-168030d61d7d // indirect
-	go.opentelemetry.io/collector/receiver/receiverhelper v0.146.2-0.20260227062254-168030d61d7d // indirect
-	go.opentelemetry.io/collector/receiver/xreceiver v0.146.2-0.20260227062254-168030d61d7d // indirect
-=======
+	go.opentelemetry.io/collector/client v1.52.1-0.20260301214332-7a2d8b5a5cac // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.146.2-0.20260301214332-7a2d8b5a5cac // indirect
 	go.opentelemetry.io/collector/consumer/xconsumer v0.146.2-0.20260301214332-7a2d8b5a5cac // indirect
 	go.opentelemetry.io/collector/featuregate v1.52.1-0.20260301214332-7a2d8b5a5cac // indirect
 	go.opentelemetry.io/collector/internal/componentalias v0.146.2-0.20260301214332-7a2d8b5a5cac // indirect
 	go.opentelemetry.io/collector/pdata/xpdata v0.146.2-0.20260301214332-7a2d8b5a5cac // indirect
-	go.opentelemetry.io/collector/pipeline/xpipeline v0.146.2-0.20260301214332-7a2d8b5a5cac // indirect
-	go.opentelemetry.io/collector/receiver/receiverhelper v0.146.2-0.20260301214332-7a2d8b5a5cac // indirect
+	go.opentelemetry.io/collector/pipeline/xpipeline v0.146.2-0.20260227062254-168030d61d7d // indirect
+	go.opentelemetry.io/collector/receiver/receiverhelper v0.146.2-0.20260227062254-168030d61d7d // indirect
 	go.opentelemetry.io/collector/receiver/xreceiver v0.146.2-0.20260301214332-7a2d8b5a5cac // indirect
->>>>>>> main
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.19.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
