@@ -791,7 +791,7 @@ func contextWithTraceparent(ctx context.Context, traceparent string) (context.Co
 	if trace.SpanContextFromContext(newCtx).IsValid() {
 		return newCtx, nil
 	}
-	return ctx, errors.New(fmt.Sprintf("invalid traceparent - %s", traceparent))
+	return ctx, fmt.Errorf("invalid traceparent - %s", traceparent)
 }
 
 func addPartialIfError(errors *scrapererror.ScrapeErrors, err error) {
