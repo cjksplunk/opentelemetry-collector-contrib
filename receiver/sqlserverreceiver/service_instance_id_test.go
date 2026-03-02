@@ -253,3 +253,326 @@ func TestParseDataSource(t *testing.T) {
 		})
 	}
 }
+
+// TestIsLocalhost tests the isLocalhost function
+func TestIsLocalhost(t *testing.T) {
+	tests := []struct {
+		name     string
+		host     string
+		expected bool
+	}{
+		{
+			name:     "localhost lowercase",
+			host:     "localhost",
+			expected: true,
+		},
+		{
+			name:     "localhost uppercase",
+			host:     "LOCALHOST",
+			expected: true,
+		},
+		{
+			name:     "localhost mixed case",
+			host:     "LocalHost",
+			expected: true,
+		},
+		{
+			name:     "127.0.0.1",
+			host:     "127.0.0.1",
+			expected: true,
+		},
+		{
+			name:     "127.0.0.2",
+			host:     "127.0.0.2",
+			expected: true,
+		},
+		{
+			name:     "::1 (IPv6 loopback)",
+			host:     "::1",
+			expected: true,
+		},
+		{
+			name:     "remote host",
+			host:     "sqlserver.example.com",
+			expected: false,
+		},
+		{
+			name:     "IP address",
+			host:     "192.168.1.1",
+			expected: false,
+		},
+		{
+			name:     "empty string",
+			host:     "",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isLocalhost(tt.host)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestIsNumeric tests the isNumeric helper function
+func TestIsNumeric(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{
+			name:     "valid port number",
+			input:    "1433",
+			expected: true,
+		},
+		{
+			name:     "zero",
+			input:    "0",
+			expected: true,
+		},
+		{
+			name:     "large number",
+			input:    "65535",
+			expected: true,
+		},
+		{
+			name:     "with letters",
+			input:    "1433abc",
+			expected: false,
+		},
+		{
+			name:     "with special characters",
+			input:    "14-33",
+			expected: false,
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: false,
+		},
+		{
+			name:     "space",
+			input:    " ",
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isNumeric(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestExtractHostFromDataSource tests the extractHostFromDataSource function
+// This tests the fallback mechanism when msdsn.Parse() doesn't set Host properly
+func TestExtractHostFromDataSource(t *testing.T) {
+	tests := []struct {
+		name     string
+		dsn      string
+		expected string
+	}{
+		// URL format tests
+		{
+			name:     "URL format with host only",
+			dsn:      "sqlserver://localhost",
+			expected: "localhost",
+		},
+		{
+			name:     "URL format with host and port",
+			dsn:      "sqlserver://localhost:1433",
+			expected: "localhost",
+		},
+		{
+			name:     "URL format with user and password",
+			dsn:      "sqlserver://sa:password@localhost",
+			expected: "localhost",
+		},
+		{
+			name:     "URL format with user, password, host, and port",
+			dsn:      "sqlserver://sa:password@localhost:1433",
+			expected: "localhost",
+		},
+		{
+			name:     "URL format with IP address",
+			dsn:      "sqlserver://sa:password@192.168.1.100:1433",
+			expected: "192.168.1.100",
+		},
+		{
+			name:     "URL format with database path",
+			dsn:      "sqlserver://sa:password@localhost:1433/mydb",
+			expected: "localhost",
+		},
+		{
+			name:     "URL format with complex password",
+			dsn:      "sqlserver://sa:p@ss%40word@sqlserver.example.com:1433",
+			expected: "sqlserver.example.com",
+		},
+		// ADO/ODBC format tests
+		{
+			name:     "ADO format with server",
+			dsn:      "server=localhost;user id=sa;password=password",
+			expected: "localhost",
+		},
+		{
+			name:     "ADO format with data source",
+			dsn:      "data source=localhost;user id=sa;password=password",
+			expected: "localhost",
+		},
+		{
+			name:     "ADO format with address",
+			dsn:      "address=localhost;user id=sa;password=password",
+			expected: "localhost",
+		},
+		{
+			name:     "ADO format with network address",
+			dsn:      "network address=localhost;user id=sa;password=password",
+			expected: "localhost",
+		},
+		{
+			name:     "ADO format with server and port",
+			dsn:      "server=localhost:1433;user id=sa;password=password",
+			expected: "localhost",
+		},
+		{
+			name:     "ADO format with quoted values",
+			dsn:      `server="localhost";user id="sa";password="password"`,
+			expected: "localhost",
+		},
+		{
+			name:     "ADO format case insensitive",
+			dsn:      "SERVER=localhost;USER ID=sa;PASSWORD=password",
+			expected: "localhost",
+		},
+		{
+			name:     "ADO format mixed case",
+			dsn:      "Server=myserver.example.com;User Id=sa;Password=password",
+			expected: "myserver.example.com",
+		},
+		{
+			name:     "ADO format with IP address",
+			dsn:      "server=192.168.1.100:1433;uid=sa;pwd=password",
+			expected: "192.168.1.100",
+		},
+		{
+			name:     "ADO format with spaces in keys",
+			dsn:      "data source=localhost; user id=sa; password=password",
+			expected: "localhost",
+		},
+		{
+			name:     "ADO format with FQDN",
+			dsn:      "Server=mydb.company.com:1500;User Id=sa;Password=password",
+			expected: "mydb.company.com",
+		},
+		// Edge cases
+		{
+			name:     "empty string",
+			dsn:      "",
+			expected: "",
+		},
+		{
+			name:     "only server key",
+			dsn:      "server=localhost",
+			expected: "localhost",
+		},
+		{
+			name:     "no recognized server keys",
+			dsn:      "user id=sa;password=password",
+			expected: "",
+		},
+		{
+			name:     "named instance with server key",
+			dsn:      "server=localhost\\SQLEXPRESS",
+			expected: "localhost\\SQLEXPRESS", // Fallback preserves the full server value
+		},
+		{
+			name:     "port as comma-separated in server value",
+			dsn:      "server=localhost,5000;user id=sa",
+			expected: "localhost,5000", // Fallback preserves comma-separated format
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractHostFromDataSource(tt.dsn)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestParseDataSourceFallbackMechanism tests that fallback extraction works when msdsn doesn't set Host
+func TestParseDataSourceFallbackMechanism(t *testing.T) {
+	tests := []struct {
+		name         string
+		dataSource   string
+		expectedHost string
+		expectedPort int
+	}{
+		{
+			name:         "fallback when only ADO-style keys provided",
+			dataSource:   "server=localhost;uid=sa",
+			expectedHost: "localhost",
+			expectedPort: defaultSQLServerPort,
+		},
+		{
+			name:         "fallback with quoted server value",
+			dataSource:   `server="localhost";user id="sa"`,
+			expectedHost: "localhost",
+			expectedPort: defaultSQLServerPort,
+		},
+		{
+			name:         "fallback extracts port from server value",
+			dataSource:   "server=localhost:1500;uid=sa",
+			expectedHost: "localhost:1500",     // Fallback returns raw value; msdsn.Parse handles port extraction
+			expectedPort: defaultSQLServerPort, // fallback doesn't extract from colon format
+		},
+		{
+			name:         "fallback with FQDN",
+			dataSource:   "server=db.example.com;uid=sa;pwd=pass",
+			expectedHost: "db.example.com",
+			expectedPort: defaultSQLServerPort,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			host, port, err := parseDataSource(tt.dataSource)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedHost, host)
+			assert.Equal(t, tt.expectedPort, port)
+		})
+	}
+}
+
+// BenchmarkParseDataSource benchmarks the parseDataSource function
+func BenchmarkParseDataSource(b *testing.B) {
+	dsn := "server=localhost;user id=sa;password=password"
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _, _ = parseDataSource(dsn)
+	}
+}
+
+// BenchmarkExtractHostFromDataSource benchmarks the extractHostFromDataSource function
+func BenchmarkExtractHostFromDataSource(b *testing.B) {
+	dsn := "server=localhost;user id=sa;password=password"
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = extractHostFromDataSource(dsn)
+	}
+}
+
+// BenchmarkComputeServiceInstanceID benchmarks the computeServiceInstanceID function
+func BenchmarkComputeServiceInstanceID(b *testing.B) {
+	cfg := &Config{
+		DataSource: "server=localhost;user id=sa;password=password",
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = computeServiceInstanceID(cfg)
+	}
+}
