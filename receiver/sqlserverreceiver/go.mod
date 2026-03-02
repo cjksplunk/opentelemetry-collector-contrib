@@ -113,8 +113,8 @@ require (
 	go.opentelemetry.io/collector/pdata/pprofile v0.146.2-0.20260301214332-7a2d8b5a5cac // indirect
 	go.opentelemetry.io/collector/pdata/xpdata v0.146.2-0.20260301214332-7a2d8b5a5cac // indirect
 	go.opentelemetry.io/collector/pipeline v1.52.1-0.20260301214332-7a2d8b5a5cac // indirect
-	go.opentelemetry.io/collector/pipeline/xpipeline v0.146.2-0.20260227062254-168030d61d7d // indirect
-	go.opentelemetry.io/collector/receiver/receiverhelper v0.146.2-0.20260227062254-168030d61d7d // indirect
+	go.opentelemetry.io/collector/pipeline/xpipeline v0.146.2-0.20260301214332-7a2d8b5a5cac // indirect
+	go.opentelemetry.io/collector/receiver/receiverhelper v0.146.2-0.20260301214332-7a2d8b5a5cac // indirect
 	go.opentelemetry.io/collector/receiver/xreceiver v0.146.2-0.20260301214332-7a2d8b5a5cac // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.49.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.37.0 // indirect
