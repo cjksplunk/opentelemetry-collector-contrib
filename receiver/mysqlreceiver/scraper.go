@@ -692,6 +692,14 @@ func (m *mySQLScraper) scrapeTopQueries(ctx context.Context, now pcommon.Timesta
 		var ok bool
 		if queryPlan, ok = m.queryPlanCache.Get(q.digest); !ok {
 			queryPlan = m.sqlclient.explainQuery(q.querySampleText, q.schemaName, m.logger)
+			if queryPlan != "" {
+				obfPlan, err := m.obfuscator.obfuscatePlan(queryPlan)
+				if err != nil {
+					m.logger.Error("Failed to obfuscate query plan", zap.Error(err))
+				} else if obfPlan != "" {
+					queryPlan = obfPlan
+				}
+			}
 			m.queryPlanCache.Add(q.digest, queryPlan)
 		}
 

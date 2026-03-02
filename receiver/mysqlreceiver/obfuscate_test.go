@@ -63,10 +63,6 @@ func validatePlanStructurePreserved(t *testing.T, input, result map[string]any) 
 
 		switch v := inputValue.(type) {
 		case map[string]any:
-			// Skip attached_condition as it should be obfuscated
-			if key == "attached_condition" {
-				continue
-			}
 			resultMap, ok := resultValue.(map[string]any)
 			require.True(t, ok, "value for key %s should be a map", key)
 			validatePlanStructurePreserved(t, v, resultMap)
