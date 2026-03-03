@@ -690,7 +690,7 @@ func (m *mySQLScraper) scrapeTopQueries(ctx context.Context, now pcommon.Timesta
 
 		var queryPlan string
 		var ok bool
-		if queryPlan, ok = m.queryPlanCache.Get(q.digest); !ok {
+		if queryPlan, ok = m.queryPlanCache.Get(q.schemaName + "-" + q.digest); !ok {
 			queryPlan = m.sqlclient.explainQuery(q.querySampleText, q.schemaName, m.logger)
 			if queryPlan != "" {
 				obfPlan, err := m.obfuscator.obfuscatePlan(queryPlan)
@@ -700,7 +700,7 @@ func (m *mySQLScraper) scrapeTopQueries(ctx context.Context, now pcommon.Timesta
 					queryPlan = obfPlan
 				}
 			}
-			m.queryPlanCache.Add(q.digest, queryPlan)
+			m.queryPlanCache.Add(q.schemaName+"-"+q.digest, queryPlan)
 		}
 
 		m.lb.RecordDbServerTopQueryEvent(
