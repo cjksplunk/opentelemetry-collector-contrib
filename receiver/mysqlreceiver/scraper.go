@@ -688,19 +688,16 @@ func (m *mySQLScraper) scrapeTopQueries(ctx context.Context, now pcommon.Timesta
 			m.logger.Error("Failed to obfuscate query", zap.Error(err))
 		}
 
-		var queryPlan string
+		queryPlan := m.sqlclient.explainQuery(q.querySampleText, q.schemaName, m.logger)
+
+		var obfuscatedPlan string
 		var ok bool
-		if queryPlan, ok = m.queryPlanCache.Get(q.schemaName + "-" + q.digest); !ok {
-			queryPlan = m.sqlclient.explainQuery(q.querySampleText, q.schemaName, m.logger)
-			if queryPlan != "" {
-				obfPlan, err := m.obfuscator.obfuscatePlan(queryPlan)
-				if err != nil {
-					m.logger.Error("Failed to obfuscate query plan", zap.Error(err))
-				} else if obfPlan != "" {
-					queryPlan = obfPlan
-				}
+		if obfuscatedPlan, ok = m.queryPlanCache.Get(q.schemaName + "-" + q.digest); !ok {
+			obfuscatedPlan, err = m.obfuscator.obfuscatePlan(queryPlan)
+			if err != nil {
+				m.logger.Error("Failed to obfuscate query", zap.Error(err))
 			}
-			m.queryPlanCache.Add(q.schemaName+"-"+q.digest, queryPlan)
+			m.queryPlanCache.Add(q.schemaName+"-"+q.digest, obfuscatedPlan)
 		}
 
 		m.lb.RecordDbServerTopQueryEvent(
@@ -708,7 +705,7 @@ func (m *mySQLScraper) scrapeTopQueries(ctx context.Context, now pcommon.Timesta
 			now,
 			metadata.AttributeDbSystemNameMysql,
 			obfuscatedQuery,
-			queryPlan,
+			obfuscatedPlan,
 			q.digest,
 			q.digest,
 			countStarVal,
@@ -760,6 +757,7 @@ func (m *mySQLScraper) scrapeQuerySamples(ctx context.Context, now pcommon.Times
 			sample.processlistCommand,
 			sample.processlistState,
 			obfuscatedQuery,
+			sample.digest,
 			sample.digest,
 			sample.eventID,
 			sample.waitEvent,

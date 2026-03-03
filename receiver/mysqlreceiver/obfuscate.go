@@ -30,7 +30,7 @@ func (o *obfuscator) obfuscateSQLString(sql string) (string, error) {
 }
 
 func (o *obfuscator) obfuscatePlan(plan string) (string, error) {
-	obfuscated, err := (*obfuscate.Obfuscator)(o).ObfuscateSQLExecPlan(plan, false)
+	obfuscated, err := (*obfuscate.Obfuscator)(o).ObfuscateSQLExecPlan(plan, true)
 	if err != nil {
 		return "", err
 	}
@@ -43,15 +43,30 @@ var defaultSQLPlanNormalizeSettings = obfuscate.JSONConfig{
 	Enabled: true,
 	ObfuscateSQLValues: []string{
 		// mysql
-		"query",
-		"condition",
-		"operation",
+		"attached_condition",
 	},
 	KeepValues: []string{
 		// mysql
-		"query_plan",
-		"query_type",
-		"json_schema_version",
+		"access_type",
+		"backward_index_scan",
+		"cacheable",
+		"delete",
+		"dependent",
+		"first_match",
+		"key",
+		"key_length",
+		"possible_keys",
+		"ref",
+		"select_id",
+		"table_name",
+		"update",
+		"used_columns",
+		"used_key_parts",
+		"using_MRR",
+		"using_filesort",
+		"using_index",
+		"using_join_buffer",
+		"using_temporary_table",
 	},
 }
 
@@ -61,7 +76,11 @@ var defaultSQLPlanObfuscateSettings = obfuscate.JSONConfig{
 	Enabled: true,
 	KeepValues: append([]string{
 		// mysql
-		"query_plan",
+		"cost_info",
+		"filtered",
+		"rows_examined_per_join",
+		"rows_examined_per_scan",
+		"rows_produced_per_join",
 	}, defaultSQLPlanNormalizeSettings.KeepValues...),
 	ObfuscateSQLValues: defaultSQLPlanNormalizeSettings.ObfuscateSQLValues,
 }
