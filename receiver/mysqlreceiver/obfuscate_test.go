@@ -46,11 +46,11 @@ func TestObfuscatePlan(t *testing.T) {
 	validatePlanStructurePreserved(t, inputPlan, resultPlan)
 
 	// Validate that obfuscatable fields (like attached_condition) are actually obfuscated
-	inputAttached := extractAttachedCondition(inputPlan)
-	resultAttached := extractAttachedCondition(resultPlan)
+	inputAttached := inputPlan["query"]
+	resultAttached := resultPlan["query"]
 
 	// The attached_condition should be obfuscated (values replaced with ?)
-	require.NotEqual(t, inputAttached, resultAttached, "attached_condition should be obfuscated")
+	require.NotEqual(t, inputAttached, resultAttached, "query should be obfuscated")
 	assert.NotContains(t, resultAttached, "'EXPLAIN %'", "obfuscated plan should not contain literal string values")
 	assert.NotContains(t, resultAttached, "'/* otel-collector-ignore */%'", "obfuscated plan should not contain literal string values")
 }
@@ -84,23 +84,14 @@ func validatePlanStructurePreserved(t *testing.T, input, result map[string]any) 
 
 		case string, float64, bool, nil:
 			// Preserve non-obfuscatable string values (like field names, numbers, booleans)
-			if key != "attached_condition" {
+			switch key {
+			case "query", "operation", "condition":
+				// we expect these to be obfuscated if the obfuscator detects the need to do so, otherwise the value will remain unchanged
+				continue
+
+			default:
 				assert.Equal(t, inputValue, resultValue, "value for field %s was modified", key)
 			}
 		}
 	}
-}
-
-// extractAttachedCondition extracts the attached_condition string from the plan
-func extractAttachedCondition(plan map[string]any) string {
-	if queryBlock, ok := plan["query_block"].(map[string]any); ok {
-		if orderingOp, ok := queryBlock["ordering_operation"].(map[string]any); ok {
-			if table, ok := orderingOp["table"].(map[string]any); ok {
-				if condition, ok := table["attached_condition"].(string); ok {
-					return condition
-				}
-			}
-		}
-	}
-	return ""
 }

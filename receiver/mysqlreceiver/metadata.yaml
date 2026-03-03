@@ -252,6 +252,7 @@ events:
       - mysql.threads.processlist_state
       - db.query.text
       - mysql.events_statements_current.digest
+      - mysql.query_plan.hash
       - mysql.event_id
       - mysql.wait_type
       - mysql.events_waits_current.timer_wait

@@ -43,30 +43,15 @@ var defaultSQLPlanNormalizeSettings = obfuscate.JSONConfig{
 	Enabled: true,
 	ObfuscateSQLValues: []string{
 		// mysql
-		"attached_condition",
+		"query",
+		"condition",
+		"operation",
 	},
 	KeepValues: []string{
 		// mysql
-		"access_type",
-		"backward_index_scan",
-		"cacheable",
-		"delete",
-		"dependent",
-		"first_match",
-		"key",
-		"key_length",
-		"possible_keys",
-		"ref",
-		"select_id",
-		"table_name",
-		"update",
-		"used_columns",
-		"used_key_parts",
-		"using_MRR",
-		"using_filesort",
-		"using_index",
-		"using_join_buffer",
-		"using_temporary_table",
+		"query_plan",
+		"query_type",
+		"json_schema_version",
 	},
 }
 
@@ -76,11 +61,7 @@ var defaultSQLPlanObfuscateSettings = obfuscate.JSONConfig{
 	Enabled: true,
 	KeepValues: append([]string{
 		// mysql
-		"cost_info",
-		"filtered",
-		"rows_examined_per_join",
-		"rows_examined_per_scan",
-		"rows_produced_per_join",
+		"query_plan",
 	}, defaultSQLPlanNormalizeSettings.KeepValues...),
 	ObfuscateSQLValues: defaultSQLPlanNormalizeSettings.ObfuscateSQLValues,
 }
