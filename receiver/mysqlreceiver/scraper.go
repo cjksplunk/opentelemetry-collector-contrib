@@ -11,7 +11,6 @@ import (
 	"net"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -889,42 +888,4 @@ func sortTopQueries(queries []topQuery, values []int64, maximum uint64) []topQue
 		results = append(results, item.Value)
 	}
 	return results
-}
-
-func validateTraceparent(tp string) bool {
-	parts := strings.Split(tp, "-")
-	if len(parts) < 4 {
-		return false
-	}
-
-	if len(parts[0]) != 2 {
-		return false
-	}
-	version, err := strconv.ParseUint(parts[0], 16, 8)
-	if err != nil || version == 0xff {
-		return false
-	}
-	// Version 00 must contain exactly 4 fields.
-	if version == 0 && len(parts) != 4 {
-		return false
-	}
-
-	tid, err := trace.TraceIDFromHex(parts[1])
-	if err != nil || !tid.IsValid() {
-		return false
-	}
-	sid, err := trace.SpanIDFromHex(parts[2])
-	if err != nil || !sid.IsValid() {
-		return false
-	}
-
-	// flags must be 2 hex chars
-	if len(parts[3]) != 2 {
-		return false
-	}
-	if _, err := strconv.ParseUint(parts[3], 16, 8); err != nil {
-		return false
-	}
-
-	return true
 }
