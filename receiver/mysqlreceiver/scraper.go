@@ -10,7 +10,6 @@ import (
 	"net"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -69,6 +68,7 @@ func (m *mySQLScraper) start(_ context.Context, _ component.Host) error {
 
 	err = sqlclient.Connect()
 	if err != nil {
+		_ = sqlclient.Close()
 		return err
 	}
 	m.sqlclient = sqlclient
@@ -692,28 +692,21 @@ func (m *mySQLScraper) scrapeTopQueries(ctx context.Context, now pcommon.Timesta
 		var queryPlan string
 		var ok bool
 		if queryPlan, ok = m.queryPlanCache.Get(q.schemaName + "-" + q.digest); !ok {
-			// check for an indicator that the query string was truncated on retrieval.
-			// Note that by default, the maximum stored length of the query text is 1024, but this may be set by the server variable performance_schema_max_sql_text_length
-			if strings.HasSuffix(strings.Trim(q.querySampleText, ""), "...") {
-				// never going to get a query plan since the query is likely truncated so skip everything else
-				m.logger.Info("Query is truncated and cannot be explained", zap.String("query_digest", q.digest), zap.String("schema", q.schemaName))
+			// attempt to explain the query
+			queryPlan = m.sqlclient.explainQuery(q.querySampleText, q.schemaName, q.digest, m.logger)
+			if queryPlan == "" {
+				// For a likely logged reason, the query plan was not fetched, so log at this level so it may be associated with a digest
+				m.logger.Warn("Failed to obtain query plan", zap.String("schema", q.schemaName), zap.String("digest", q.digestText))
 			} else {
-				// query is likely complete and explainable
-				queryPlan = m.sqlclient.explainQuery(q.querySampleText, q.schemaName, q.digest, m.logger)
-				if queryPlan == "" {
-					// For a likely logged reason, the query plan was not able to be fetched, so explain at this level so it may be associated with a digest
-					m.logger.Warn("Failed to obtain query plan", zap.String("schema", q.schemaName), zap.String("digest", q.digestText))
-				} else {
-					// Obfuscate the plan
-					queryPlan, err = m.obfuscator.obfuscatePlan(queryPlan)
-					if err != nil {
-						// Obfuscation returned an error, log it. We cannot publish the unobfuscated plan as it may contain sensitive data
-						m.logger.Error("Failed to obfuscate query plan", zap.Error(err))
-					}
+				// Obfuscate the plan
+				queryPlan, err = m.obfuscator.obfuscatePlan(queryPlan)
+				if err != nil {
+					// Obfuscation returned an error, log it. We cannot publish the unobfuscated plan as it may contain sensitive data
+					m.logger.Error("Failed to obfuscate query plan", zap.Error(err))
 				}
-				// add the obfuscated plan to the cache so we can use it again
-				m.queryPlanCache.Add(q.schemaName+"-"+q.digest, queryPlan)
 			}
+			// add the obfuscated plan to the cache so we can use it again
+			m.queryPlanCache.Add(q.schemaName+"-"+q.digest, queryPlan)
 		}
 
 		m.lb.RecordDbServerTopQueryEvent(

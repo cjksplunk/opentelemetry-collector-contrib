@@ -795,7 +795,7 @@ func (c *mySQLClient) getQuerySamples(limit uint64) ([]querySample, error) {
 }
 
 func (c *mySQLClient) explainQuery(statement, schema, digest string, logger *zap.Logger) string {
-	// Scraper also does this TODO: figure out the best place for this logic
+	// Checking this here as the client is responsible for deciding what to return
 	if strings.HasSuffix(statement, "...") {
 		logger.Warn("statement is truncated, skipping explain", zap.String("digest", digest))
 		return ""
@@ -858,7 +858,7 @@ func isQueryExplainable(query string) bool {
 
 	// Strip leading MySQL executable comments (/*! … */ and /*+ … */) before
 	// checking the keyword so that, e.g., "/*!50001 */ SELECT …" is still
-	// recognised as explainable.
+	// recognized as explainable.
 	if loc := mysqlLeadingExecutableComment.FindStringIndex(trimmedQuery); loc != nil {
 		trimmedQuery = strings.TrimSpace(trimmedQuery[loc[1]:])
 	}

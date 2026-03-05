@@ -37,13 +37,38 @@ func (o *obfuscator) obfuscatePlan(plan string) (string, error) {
 	return obfuscated, nil
 }
 
-// defaultSQLPlanNormalizeSettings are the default JSON obfuscator settings for both obfuscating and normalizing SQL
-// execution plans.
 // For further information, see https://dev.mysql.com/doc/refman/8.4/en/explain.html
 // MySQL 8.4 EXPLAIN FORMAT=JSON produces two formats depending on explain_json_format_version:
 //   - Version 1 (default): query_block → ordering_operation → table → attached_condition
 //   - Version 2: top-level query + inputs array, each node has condition/operation/access_type etc.
+
+// defaultSQLPlanNormalizeSettings are the default JSON obfuscator settings for both obfuscating and normalizing SQL
+// execution plans.
 var defaultSQLPlanNormalizeSettings = obfuscate.JSONConfig{
+	Enabled: true,
+	ObfuscateSQLValues: []string{
+		// v1 and v2: the full query text
+		"query",
+		// v2: SQL condition expression on a filter node
+		"condition",
+		// v2: human-readable description of a plan node (e.g. "Filter: (...)", "Table scan on ...")
+		"operation",
+		// v1: SQL condition expression attached to a table scan
+		"attached_condition",
+	},
+	KeepValues: []string{
+		// mysql
+		"cost_info",
+		"filtered",
+		"rows_examined_per_join",
+		"rows_examined_per_scan",
+		"rows_produced_per_join",
+	},
+}
+
+// defaultSQLPlanObfuscateSettings builds upon sqlPlanNormalizeSettings by including cost & row estimates in the keep
+// list
+var defaultSQLPlanObfuscateSettings = obfuscate.JSONConfig{
 	Enabled: true,
 	ObfuscateSQLValues: []string{
 		// v1 and v2: the full query text
@@ -85,19 +110,4 @@ var defaultSQLPlanNormalizeSettings = obfuscate.JSONConfig{
 		"sort_fields",
 		"table_name",
 	},
-}
-
-// defaultSQLPlanObfuscateSettings builds upon sqlPlanNormalizeSettings by including cost & row estimates in the keep
-// list
-var defaultSQLPlanObfuscateSettings = obfuscate.JSONConfig{
-	Enabled: true,
-	KeepValues: append([]string{
-		// mysql
-		"cost_info",
-		"filtered",
-		"rows_examined_per_join",
-		"rows_examined_per_scan",
-		"rows_produced_per_join",
-	}, defaultSQLPlanNormalizeSettings.KeepValues...),
-	ObfuscateSQLValues: defaultSQLPlanNormalizeSettings.ObfuscateSQLValues,
 }
