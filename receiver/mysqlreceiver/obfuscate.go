@@ -37,6 +37,14 @@ func (o *obfuscator) obfuscatePlan(plan string) (string, error) {
 	return obfuscated, nil
 }
 
+func (o *obfuscator) normalizePlan(plan string) (string, error) {
+	normalized, err := (*obfuscate.Obfuscator)(o).ObfuscateSQLExecPlan(plan, true)
+	if err != nil {
+		return "", err
+	}
+	return normalized, nil
+}
+
 // For further information, see https://dev.mysql.com/doc/refman/8.4/en/explain.html
 // MySQL 8.4 EXPLAIN FORMAT=JSON produces two formats depending on explain_json_format_version:
 //   - Version 1 (default): query_block → ordering_operation → table → attached_condition
@@ -49,20 +57,41 @@ var defaultSQLPlanNormalizeSettings = obfuscate.JSONConfig{
 	ObfuscateSQLValues: []string{
 		// v1 and v2: the full query text
 		"query",
+		// v1: SQL condition expression attached to a table scan
+		"attached_condition",
+		// V1: costs
+		"query_cost",
+		"cost_info",
+		"read_cost",
+		"eval_cost",
+		"prefix_cost",
+		"data_read_per_join",
+		// V1: row estimates
+		"rows_examined_per_scan",
+		"rows_produced_per_join",
 		// v2: SQL condition expression on a filter node
 		"condition",
 		// v2: human-readable description of a plan node (e.g. "Filter: (...)", "Table scan on ...")
 		"operation",
-		// v1: SQL condition expression attached to a table scan
-		"attached_condition",
+		// V2: costs
+		"estimated_total_cost",
+		"estimated_rows",
+		// V2: row estimates
+		"estimated_rows",
 	},
 	KeepValues: []string{
 		// mysql
+		"access_type",
 		"cost_info",
 		"filtered",
 		"rows_examined_per_join",
 		"rows_examined_per_scan",
 		"rows_produced_per_join",
+		"select_id",
+		"table",
+		"table_name",
+		"used_columns",
+		"using_filesort",
 	},
 }
 
