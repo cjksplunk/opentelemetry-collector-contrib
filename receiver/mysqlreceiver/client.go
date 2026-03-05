@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
+	"regexp"
 	"strings"
 	"text/template"
 	"time"
@@ -18,6 +19,12 @@ import (
 	"github.com/hashicorp/go-version"
 	"go.uber.org/zap"
 )
+
+// mysqlLeadingExecutableComment matches one or more leading MySQL executable
+// comments at the start of a query. MySQL uses /*! … */ for version-conditional
+// execution and /*+ … */ for optimizer hints.
+// See https://dev.mysql.com/doc/refman/8.4/en/extensions-to-ansi.html
+var mysqlLeadingExecutableComment = regexp.MustCompile(`(?s)^(\s*/\*[!+].*?\*/)+`)
 
 type client interface {
 	Connect() error
@@ -32,7 +39,7 @@ type client interface {
 	getReplicaStatusStats() ([]replicaStatusStats, error)
 	getQuerySamples(uint64) ([]querySample, error)
 	getTopQueries(uint64, uint64) ([]topQuery, error)
-	explainQuery(statement, schema string, logger *zap.Logger) string
+	explainQuery(statement, schema, digest string, logger *zap.Logger) string
 	Close() error
 }
 
@@ -787,31 +794,53 @@ func (c *mySQLClient) getQuerySamples(limit uint64) ([]querySample, error) {
 	return samples, nil
 }
 
-func (c *mySQLClient) explainQuery(statement, schema string, logger *zap.Logger) string {
+func (c *mySQLClient) explainQuery(statement, schema, digest string, logger *zap.Logger) string {
+	// Scraper also does this TODO: figure out the best place for this logic
 	if strings.HasSuffix(statement, "...") {
-		logger.Warn("statement is truncated, skipping explain", zap.String("statement", statement))
+		logger.Warn("statement is truncated, skipping explain", zap.String("digest", digest))
 		return ""
 	}
 
 	if !isQueryExplainable(statement) {
-		logger.Debug("statement is not explainable, skipping explain query", zap.String("statement", statement))
+		logger.Warn("statement is not explainable, skipping explain query", zap.String("digest", digest))
 		return ""
 	}
 
 	if schema != "" {
 		if _, err := c.client.Exec(fmt.Sprintf("/* otel-collector-ignore */ USE %s;", schema)); err != nil {
-			logger.Error(fmt.Sprintf("unable to use schema: %s", schema), zap.Error(err))
+			logger.Error(fmt.Sprintf("unable to use schema: %s", schema), zap.String("digest", digest), zap.Error(err))
 			return ""
 		}
 	}
 
 	var plan string
-	err := c.client.QueryRow(fmt.Sprintf("EXPLAIN FORMAT=json %s", statement)).Scan(&plan)
+	err := c.client.QueryRow(buildExplainStatement(statement)).Scan(&plan)
 	if err != nil {
-		logger.Error("unable to execute explain statement", zap.Error(err))
+		logger.Warn("unable to execute explain statement", zap.String("digest", digest), zap.Error(err))
 		return ""
 	}
+	if plan == "" {
+		logger.Warn("explain query returned empty plan", zap.String("digest", digest))
+	}
 	return plan
+}
+
+// buildExplainStatement constructs the EXPLAIN FORMAT=json statement,
+// preserving any leading MySQL executable comments before the EXPLAIN keyword.
+// MySQL executable comments (/*! … */ and /*+ … */) must appear before EXPLAIN
+// to be parsed correctly by MySQL.
+// See https://dev.mysql.com/doc/refman/8.4/en/extensions-to-ansi.html
+func buildExplainStatement(statement string) string {
+	trimmed := strings.TrimSpace(statement)
+	prefix := ""
+	if loc := mysqlLeadingExecutableComment.FindStringIndex(trimmed); loc != nil {
+		prefix = strings.TrimSpace(trimmed[:loc[1]])
+		trimmed = strings.TrimSpace(trimmed[loc[1]:])
+	}
+	if prefix != "" {
+		return prefix + " EXPLAIN FORMAT=json " + trimmed
+	}
+	return "EXPLAIN FORMAT=json " + trimmed
 }
 
 // This function filters out queries that are unsupported by 'EXPLAIN'
@@ -826,6 +855,14 @@ func isQueryExplainable(query string) bool {
 	}
 
 	trimmedQuery := strings.TrimSpace(query)
+
+	// Strip leading MySQL executable comments (/*! … */ and /*+ … */) before
+	// checking the keyword so that, e.g., "/*!50001 */ SELECT …" is still
+	// recognised as explainable.
+	if loc := mysqlLeadingExecutableComment.FindStringIndex(trimmedQuery); loc != nil {
+		trimmedQuery = strings.TrimSpace(trimmedQuery[loc[1]:])
+	}
+
 	lowerQuery := strings.ToLower(trimmedQuery)
 
 	for _, keyword := range sqlStartingKeywords {
