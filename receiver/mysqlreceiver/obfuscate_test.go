@@ -45,9 +45,13 @@ func TestObfuscateSQL(t *testing.T) {
 	assert.Equal(t, expectedSQL, result)
 }
 
-func TestNormalizePlanFieldBehavior(t *testing.T) {
-	// Each sub-test targets a single key from defaultSQLPlanNormalizeSettings to document
-	// and verify whether its value is kept as-is (KeepValues) or obfuscated (ObfuscateSQLValues).
+// TestNormalizePlanSettingsFieldBehavior tests every individual key in defaultSQLPlanNormalizeSettings
+// to document whether its value is kept verbatim (KeepValues) or replaced with "?" (ObfuscateSQLValues).
+//
+// No equivalent test exists for defaultSQLPlanObfuscateSettings because that config keeps almost all
+// structural fields, so the full real-plan fixtures used in TestObfuscatePlan already exercise every
+// entry in both its KeepValues and ObfuscateSQLValues lists without needing field-level cases.
+func TestNormalizePlanSettingsFieldBehavior(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -152,33 +156,21 @@ func TestNormalizePlanFieldBehavior(t *testing.T) {
 	}
 }
 
-func TestNormalizePlan(t *testing.T) {
-	// When normalize=true, ObfuscateSQLExecPlan uses defaultSQLPlanNormalizeSettings, which additionally
-	// replaces numeric and structural values (estimated_rows, estimated_total_cost, access_type, table_name,
-	// select_id, using_filesort, etc.) with "?" compared to the obfuscate-only path.
-	tests := []struct {
-		name         string
-		inputFile    string
-		expectedFile string
-	}{
-		{
-			name:         "version1_query_block_normalized",
-			inputFile:    "inputQueryPlan.json",
-			expectedFile: "expectedQueryPlanNormalized.json",
-		},
-		{
-			name:         "version2_inputs_array_normalized",
-			inputFile:    "inputQueryPlanV2.json",
-			expectedFile: "expectedQueryPlanV2Normalized.json",
-		},
-	}
-
+// runPlanTests is a helper that drives table-driven tests for plan obfuscation/normalization.
+// planFunc is the method under test (e.g. obfuscator.obfuscatePlan or obfuscator.normalizePlan).
+func runPlanTests(t *testing.T, planFunc func(string) (string, error), tests []struct {
+	name         string
+	inputFile    string
+	expectedFile string
+},
+) {
+	t.Helper()
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			input, err := os.ReadFile(filepath.Join("testdata", "obfuscate", tc.inputFile))
 			require.NoError(t, err)
 
-			result, err := newObfuscator().normalizePlan(string(input))
+			result, err := planFunc(string(input))
 			require.NoError(t, err)
 
 			expected, err := os.ReadFile(filepath.Join("testdata", "obfuscate", tc.expectedFile))
@@ -194,11 +186,33 @@ func TestNormalizePlan(t *testing.T) {
 	}
 }
 
+func TestNormalizePlan(t *testing.T) {
+	// When normalize=true, ObfuscateSQLExecPlan uses defaultSQLPlanNormalizeSettings, which additionally
+	// replaces numeric and structural values (estimated_rows, estimated_total_cost, access_type, table_name,
+	// select_id, using_filesort, etc.) with "?" compared to the obfuscate-only path.
+	runPlanTests(t, newObfuscator().normalizePlan, []struct {
+		name         string
+		inputFile    string
+		expectedFile string
+	}{
+		{
+			name:         "version1_query_block_normalized",
+			inputFile:    "inputQueryPlan.json",
+			expectedFile: "expectedQueryPlanNormalized.json",
+		},
+		{
+			name:         "version2_inputs_array_normalized",
+			inputFile:    "inputQueryPlanV2.json",
+			expectedFile: "expectedQueryPlanV2Normalized.json",
+		},
+	})
+}
+
 func TestObfuscatePlan(t *testing.T) {
 	// MySQL 8.4 EXPLAIN FORMAT=JSON produces two formats:
 	//   Version 1 (default, explain_json_format_version=1): query_block → ordering_operation → table → attached_condition
 	//   Version 2 (explain_json_format_version=2):          query + inputs array, each node has condition/operation/access_type
-	tests := []struct {
+	runPlanTests(t, newObfuscator().obfuscatePlan, []struct {
 		name         string
 		inputFile    string
 		expectedFile string
@@ -213,25 +227,5 @@ func TestObfuscatePlan(t *testing.T) {
 			inputFile:    "inputQueryPlanV2.json",
 			expectedFile: "expectedQueryPlanV2.json",
 		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			input, err := os.ReadFile(filepath.Join("testdata", "obfuscate", tc.inputFile))
-			require.NoError(t, err)
-
-			result, err := newObfuscator().obfuscatePlan(string(input))
-			require.NoError(t, err)
-
-			expected, err := os.ReadFile(filepath.Join("testdata", "obfuscate", tc.expectedFile))
-			require.NoError(t, err)
-
-			// Normalize JSON for comparison to ignore formatting differences
-			var resultJSON, expectedJSON any
-			require.NoError(t, json.Unmarshal([]byte(result), &resultJSON))
-			require.NoError(t, json.Unmarshal(expected, &expectedJSON))
-
-			assert.Equal(t, expectedJSON, resultJSON)
-		})
-	}
+	})
 }

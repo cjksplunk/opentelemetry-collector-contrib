@@ -75,18 +75,13 @@ var defaultSQLPlanNormalizeSettings = obfuscate.JSONConfig{
 		"operation",
 		// V2: costs
 		"estimated_total_cost",
-		"estimated_rows",
 		// V2: row estimates
 		"estimated_rows",
 	},
 	KeepValues: []string{
 		// mysql
 		"access_type",
-		"cost_info",
 		"filtered",
-		"rows_examined_per_join",
-		"rows_examined_per_scan",
-		"rows_produced_per_join",
 		"select_id",
 		"table",
 		"table_name",
