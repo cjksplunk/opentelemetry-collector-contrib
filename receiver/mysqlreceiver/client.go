@@ -49,6 +49,7 @@ type mySQLClient struct {
 	statementEventsDigestTextLimit int
 	statementEventsLimit           int
 	statementEventsTimeLimit       time.Duration
+	maxDigestLength                int64
 }
 
 type ioWaitsStats struct {
@@ -269,6 +270,9 @@ func (c *mySQLClient) Connect() error {
 		return fmt.Errorf("unable to connect to database: %w", err)
 	}
 	c.client = clientDB
+	if err := c.client.QueryRow("SELECT @@max_digest_length").Scan(&c.maxDigestLength); err != nil {
+		return fmt.Errorf("unable to query @@max_digest_length: %w", err)
+	}
 	return nil
 }
 
@@ -795,12 +799,10 @@ func (c *mySQLClient) getQuerySamples(limit uint64) ([]querySample, error) {
 }
 
 func (c *mySQLClient) explainQuery(statement, schema, digest string, logger *zap.Logger) string {
-	// Checking this here as the client is responsible for deciding what to return
-	if strings.HasSuffix(statement, "...") {
-		logger.Warn("statement is truncated, skipping explain", zap.String("digest", digest))
+	if int64(len(statement)) >= c.maxDigestLength {
+		logger.Warn("statement length exceeds max_digest_length, skipping explain", zap.String("digest", digest), zap.Int("statementLength", len(statement)), zap.Int64("maxDigestLength", c.maxDigestLength))
 		return ""
 	}
-
 	if !isQueryExplainable(statement) {
 		logger.Warn("statement is not explainable, skipping explain query", zap.String("digest", digest))
 		return ""

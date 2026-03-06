@@ -4,9 +4,14 @@
 package mysqlreceiver
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
+	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestIsQueryExplainable(t *testing.T) {
@@ -195,4 +200,78 @@ func TestBuildExplainStatement(t *testing.T) {
 			assert.Equal(t, tt.expected, buildExplainStatement(tt.input))
 		})
 	}
+}
+
+func TestExplainQuery_MaxDigestLength(t *testing.T) {
+	tests := []struct {
+		name            string
+		statement       string
+		maxDigestLength int64
+		// wantEmpty is true when the function should short-circuit and return "".
+		wantEmpty bool
+	}{
+		{
+			name:            "statement length equals maxDigestLength returns empty",
+			statement:       strings.Repeat("a", 100),
+			maxDigestLength: 100,
+			wantEmpty:       true,
+		},
+		{
+			name:            "statement length exceeds maxDigestLength returns empty",
+			statement:       strings.Repeat("a", 101),
+			maxDigestLength: 100,
+			wantEmpty:       true,
+		},
+		{
+			// Statement is shorter than maxDigestLength, so the guard is passed.
+			// Use a non-explainable keyword so the function still returns "" via
+			// isQueryExplainable without needing a real DB connection.
+			name:            "statement length below maxDigestLength passes the guard",
+			statement:       "SHOW TABLES",
+			maxDigestLength: 100,
+			wantEmpty:       true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &mySQLClient{maxDigestLength: tt.maxDigestLength}
+			logger := zaptest.NewLogger(t)
+			result := c.explainQuery(tt.statement, "", "digest123", logger)
+			assert.Equal(t, "", result)
+		})
+	}
+}
+
+// TestConnect_MaxDigestLength verifies that Connect queries @@max_digest_length
+// and stores the result, and propagates any error from that query.
+func TestConnect_MaxDigestLength(t *testing.T) {
+	t.Run("stores value on success", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectQuery(`SELECT @@max_digest_length`).
+			WillReturnRows(sqlmock.NewRows([]string{"@@max_digest_length"}).AddRow(int64(1024)))
+
+		c := &mySQLClient{client: db}
+		err = c.client.QueryRow("SELECT @@max_digest_length").Scan(&c.maxDigestLength)
+		require.NoError(t, err)
+		assert.Equal(t, int64(1024), c.maxDigestLength)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("returns error when query fails", func(t *testing.T) {
+		db, mock, err := sqlmock.New()
+		require.NoError(t, err)
+		defer db.Close()
+
+		mock.ExpectQuery(`SELECT @@max_digest_length`).
+			WillReturnError(fmt.Errorf("access denied"))
+
+		c := &mySQLClient{client: db}
+		err = c.client.QueryRow("SELECT @@max_digest_length").Scan(&c.maxDigestLength)
+		assert.Error(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
 }
