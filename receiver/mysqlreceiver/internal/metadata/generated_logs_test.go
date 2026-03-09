@@ -130,7 +130,7 @@ func TestLogsBuilder(t *testing.T) {
 			defaultEventsCount++
 			allEventsCount++
 			lb.RecordDbServerQuerySampleEvent(ctx, timestamp, AttributeDbSystemNameMysql, 23, "user.name-val", "db.namespace-val", "mysql.threads.processlist_command-val", "mysql.threads.processlist_state-val", "db.query.text-val", "mysql.events_statements_current.digest-val", "mysql.query_plan.hash-val", 14, "mysql.wait_type-val", 37.100000, "client.address-val", 11, "network.peer.address-val", 17)
-
+			defaultEventsCount++
 			allEventsCount++
 			lb.RecordDbServerTopQueryEvent(ctx, timestamp, AttributeDbSystemNameMysql, "db.query.text-val", "mysql.query_plan-val", "mysql.query_plan.hash-val", "mysql.events_statements_summary_by_digest.digest-val", 52, 56.100000)
 

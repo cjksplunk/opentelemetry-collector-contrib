@@ -357,7 +357,7 @@ $defs:
         properties:
           enabled:
             type: boolean
-            default: false
+            default: true
   resource_attributes_config:
     description: ResourceAttributesConfig provides config for mysql resource attributes.
     type: object

@@ -696,16 +696,6 @@ This provides real-time visibility into active queries, helping users monitor da
 | network.peer.address | IP address of the peer client. | Any Str |
 | network.peer.port | TCP port used by the peer client. | Any Int |
 
-## Optional Events
-
-The following events are not emitted by default. Each of them can be enabled by applying the following configuration:
-
-```yaml
-events:
-  <event_name>:
-    enabled: true
-```
-
 ### db.server.top_query
 
 Top query collection enables monitoring of the queries that consumed the most CPU in the database.

@@ -259,7 +259,7 @@ func DefaultEventsConfig() EventsConfig {
 			Enabled: true,
 		},
 		DbServerTopQuery: EventConfig{
-			Enabled: false,
+			Enabled: true,
 		},
 	}
 }
