@@ -4,7 +4,7 @@
 package mysqlreceiver
 
 import (
-	"fmt"
+	"errors"
 	"strings"
 	"testing"
 
@@ -207,7 +207,7 @@ func TestExplainQuery_MaxDigestLength(t *testing.T) {
 			c := &mySQLClient{maxDigestLength: tt.maxDigestLength}
 			logger := zaptest.NewLogger(t)
 			result := c.explainQuery(tt.statement, "", "", "digest123", logger)
-			assert.Equal(t, "", result)
+			assert.Empty(t, result)
 		})
 	}
 }
@@ -236,7 +236,7 @@ func TestConnect_MaxDigestLength(t *testing.T) {
 		defer db.Close()
 
 		mock.ExpectQuery(`SELECT @@max_digest_length`).
-			WillReturnError(fmt.Errorf("access denied"))
+			WillReturnError(errors.New("access denied"))
 
 		c := &mySQLClient{client: db}
 		err = c.client.QueryRow("SELECT @@max_digest_length").Scan(&c.maxDigestLength)

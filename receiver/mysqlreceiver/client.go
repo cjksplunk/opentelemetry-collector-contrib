@@ -39,7 +39,7 @@ type client interface {
 	getReplicaStatusStats() ([]replicaStatusStats, error)
 	getQuerySamples(uint64) ([]querySample, error)
 	getTopQueries(uint64, uint64) ([]topQuery, error)
-	explainQuery(digest_text, sample_statement, schema, digest string, logger *zap.Logger) string
+	explainQuery(digestText, sampleStatement, schema, digest string, logger *zap.Logger) string
 	Close() error
 }
 
