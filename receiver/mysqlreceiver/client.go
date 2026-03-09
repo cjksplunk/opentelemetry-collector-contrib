@@ -39,7 +39,7 @@ type client interface {
 	getReplicaStatusStats() ([]replicaStatusStats, error)
 	getQuerySamples(uint64) ([]querySample, error)
 	getTopQueries(uint64, uint64) ([]topQuery, error)
-	explainQuery(statement, schema, digest string, logger *zap.Logger) string
+	explainQuery(digest_text, sample_statement, schema, digest string, logger *zap.Logger) string
 	Close() error
 }
 
@@ -798,12 +798,12 @@ func (c *mySQLClient) getQuerySamples(limit uint64) ([]querySample, error) {
 	return samples, nil
 }
 
-func (c *mySQLClient) explainQuery(statement, schema, digest string, logger *zap.Logger) string {
-	if int64(len(statement)) >= c.maxDigestLength {
-		logger.Warn("statement length exceeds max_digest_length, skipping explain", zap.String("digest", digest), zap.Int("statementLength", len(statement)), zap.Int64("maxDigestLength", c.maxDigestLength))
+func (c *mySQLClient) explainQuery(digestText, sampleStatement, schema, digest string, logger *zap.Logger) string {
+	if strings.HasSuffix(sampleStatement, "...") {
+		logger.Warn("statement is truncated, skipping explain", zap.String("digest_text", digestText))
 		return ""
 	}
-	if !isQueryExplainable(statement) {
+	if !isQueryExplainable(digestText) {
 		logger.Warn("statement is not explainable, skipping explain query", zap.String("digest", digest))
 		return ""
 	}
@@ -816,7 +816,7 @@ func (c *mySQLClient) explainQuery(statement, schema, digest string, logger *zap
 	}
 
 	var plan string
-	err := c.client.QueryRow(buildExplainStatement(statement)).Scan(&plan)
+	err := c.client.QueryRow(buildExplainStatement(sampleStatement)).Scan(&plan)
 	if err != nil {
 		logger.Warn("unable to execute explain statement", zap.String("digest", digest), zap.Error(err))
 		return ""
@@ -827,22 +827,8 @@ func (c *mySQLClient) explainQuery(statement, schema, digest string, logger *zap
 	return plan
 }
 
-// buildExplainStatement constructs the EXPLAIN FORMAT=json statement,
-// preserving any leading MySQL executable comments before the EXPLAIN keyword.
-// MySQL executable comments (/*! … */ and /*+ … */) must appear before EXPLAIN
-// to be parsed correctly by MySQL.
-// See https://dev.mysql.com/doc/refman/8.4/en/extensions-to-ansi.html
 func buildExplainStatement(statement string) string {
-	trimmed := strings.TrimSpace(statement)
-	prefix := ""
-	if loc := mysqlLeadingExecutableComment.FindStringIndex(trimmed); loc != nil {
-		prefix = strings.TrimSpace(trimmed[:loc[1]])
-		trimmed = strings.TrimSpace(trimmed[loc[1]:])
-	}
-	if prefix != "" {
-		return prefix + " EXPLAIN FORMAT=json " + trimmed
-	}
-	return "EXPLAIN FORMAT=json " + trimmed
+	return "EXPLAIN FORMAT=json " + strings.TrimSpace(statement)
 }
 
 // This function filters out queries that are unsupported by 'EXPLAIN'

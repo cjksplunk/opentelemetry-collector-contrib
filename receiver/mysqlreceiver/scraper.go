@@ -693,7 +693,7 @@ func (m *mySQLScraper) scrapeTopQueries(ctx context.Context, now pcommon.Timesta
 		var ok bool
 		if queryPlan, ok = m.queryPlanCache.Get(q.schemaName + "-" + q.digest); !ok {
 			// attempt to explain the query
-			queryPlan = m.sqlclient.explainQuery(q.querySampleText, q.schemaName, q.digest, m.logger)
+			queryPlan = m.sqlclient.explainQuery(q.digestText, q.querySampleText, q.schemaName, q.digest, m.logger)
 			if queryPlan == "" {
 				// For a likely logged reason, the query plan was not fetched, so log at this level so it may be associated with a digest
 				m.logger.Warn("Failed to obtain query plan", zap.String("schema", q.schemaName), zap.String("digest", q.digestText))
@@ -715,7 +715,6 @@ func (m *mySQLScraper) scrapeTopQueries(ctx context.Context, now pcommon.Timesta
 			metadata.AttributeDbSystemNameMysql,
 			obfuscatedQuery,
 			queryPlan,
-			q.digest,
 			q.digest,
 			countStarVal,
 			sumTimerWaitVal,

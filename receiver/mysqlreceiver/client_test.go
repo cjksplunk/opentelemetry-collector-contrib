@@ -148,48 +148,17 @@ func TestBuildExplainStatement(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "plain query no comments",
+			name:     "plain query",
 			input:    "SELECT * FROM t",
 			expected: "EXPLAIN FORMAT=json SELECT * FROM t",
 		},
 		{
-			name:     "leading whitespace before query",
+			name:     "leading whitespace is trimmed",
 			input:    "   SELECT * FROM t",
 			expected: "EXPLAIN FORMAT=json SELECT * FROM t",
 		},
 		{
-			name:     "single version-conditional comment prefix",
-			input:    "/*!50001 */ SELECT * FROM t",
-			expected: "/*!50001 */ EXPLAIN FORMAT=json SELECT * FROM t",
-		},
-		{
-			name:     "single optimizer-hint comment prefix",
-			input:    "/*+ MAX_EXECUTION_TIME(1000) */ SELECT * FROM t",
-			expected: "/*+ MAX_EXECUTION_TIME(1000) */ EXPLAIN FORMAT=json SELECT * FROM t",
-		},
-		{
-			name:     "multi-line version-conditional comment prefix",
-			input:    "/*!50001\n  CREATE ALGORITHM=UNDEFINED\n*/ SELECT * FROM t",
-			expected: "/*!50001\n  CREATE ALGORITHM=UNDEFINED\n*/ EXPLAIN FORMAT=json SELECT * FROM t",
-		},
-		{
-			name:     "multiple stacked executable comments",
-			input:    "/*!50001 */\n/*+ MAX_EXECUTION_TIME(1000) */ SELECT * FROM t",
-			expected: "/*!50001 */\n/*+ MAX_EXECUTION_TIME(1000) */ EXPLAIN FORMAT=json SELECT * FROM t",
-		},
-		{
-			name:     "version-conditional comment before DELETE",
-			input:    "/*!80000 SET SESSION optimizer_switch='index_merge=off' */ DELETE FROM t WHERE id = 1",
-			expected: "/*!80000 SET SESSION optimizer_switch='index_merge=off' */ EXPLAIN FORMAT=json DELETE FROM t WHERE id = 1",
-		},
-		{
-			name:     "optimizer hint before UPDATE",
-			input:    "/*+ INDEX(t idx_col) */ UPDATE t SET col = 1 WHERE id = 1",
-			expected: "/*+ INDEX(t idx_col) */ EXPLAIN FORMAT=json UPDATE t SET col = 1 WHERE id = 1",
-		},
-		{
-			// Plain block comments are not executable and are left in the statement body.
-			name:     "plain block comment is not moved, stays in statement",
+			name:     "statement with comments",
 			input:    "/* ordinary comment */ SELECT * FROM t",
 			expected: "EXPLAIN FORMAT=json /* ordinary comment */ SELECT * FROM t",
 		},
@@ -237,7 +206,7 @@ func TestExplainQuery_MaxDigestLength(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &mySQLClient{maxDigestLength: tt.maxDigestLength}
 			logger := zaptest.NewLogger(t)
-			result := c.explainQuery(tt.statement, "", "digest123", logger)
+			result := c.explainQuery(tt.statement, "", "", "digest123", logger)
 			assert.Equal(t, "", result)
 		})
 	}
