@@ -10,8 +10,7 @@ import (
 var (
 	obfuscateSQLConfig = obfuscate.SQLConfig{DBMS: "mysql"}
 	obfuscatorConfig   = obfuscate.Config{
-		SQLExecPlan:          defaultSQLPlanObfuscateSettings,
-		SQLExecPlanNormalize: defaultSQLPlanNormalizeSettings,
+		SQLExecPlan: defaultSQLPlanObfuscateSettings,
 	}
 )
 
@@ -37,61 +36,10 @@ func (o *obfuscator) obfuscatePlan(plan string) (string, error) {
 	return obfuscated, nil
 }
 
-func (o *obfuscator) normalizePlan(plan string) (string, error) {
-	normalized, err := (*obfuscate.Obfuscator)(o).ObfuscateSQLExecPlan(plan, true)
-	if err != nil {
-		return "", err
-	}
-	return normalized, nil
-}
-
 // For further information, see https://dev.mysql.com/doc/refman/8.4/en/explain.html
 // MySQL 8.4 EXPLAIN FORMAT=JSON produces two formats depending on explain_json_format_version:
 //   - Version 1 (default): query_block → ordering_operation → table → attached_condition
 //   - Version 2: top-level query + inputs array, each node has condition/operation/access_type etc.
-
-// defaultSQLPlanNormalizeSettings are the default JSON obfuscator settings for both obfuscating and normalizing SQL
-// execution plans.
-var defaultSQLPlanNormalizeSettings = obfuscate.JSONConfig{
-	Enabled: true,
-	ObfuscateSQLValues: []string{
-		// v1 and v2: the full query text
-		"query",
-		// v1: SQL condition expression attached to a table scan
-		"attached_condition",
-		// V1: costs
-		"query_cost",
-		"cost_info",
-		"read_cost",
-		"eval_cost",
-		"prefix_cost",
-		"data_read_per_join",
-		// V1: row estimates
-		"rows_examined_per_scan",
-		"rows_produced_per_join",
-		// v2: SQL condition expression on a filter node
-		"condition",
-		// v2: human-readable description of a plan node (e.g. "Filter: (...)", "Table scan on ...")
-		"operation",
-		// V2: costs
-		"estimated_total_cost",
-		// V2: row estimates
-		"estimated_rows",
-	},
-	KeepValues: []string{
-		// mysql
-		"access_type",
-		"filtered",
-		"select_id",
-		"table",
-		"table_name",
-		"used_columns",
-		"using_filesort",
-	},
-}
-
-// defaultSQLPlanObfuscateSettings builds upon sqlPlanNormalizeSettings by including cost & row estimates in the keep
-// list
 var defaultSQLPlanObfuscateSettings = obfuscate.JSONConfig{
 	Enabled: true,
 	ObfuscateSQLValues: []string{

@@ -49,7 +49,6 @@ type mySQLClient struct {
 	statementEventsDigestTextLimit int
 	statementEventsLimit           int
 	statementEventsTimeLimit       time.Duration
-	maxDigestLength                int64
 }
 
 type ioWaitsStats struct {
@@ -270,9 +269,6 @@ func (c *mySQLClient) Connect() error {
 		return fmt.Errorf("unable to connect to database: %w", err)
 	}
 	c.client = clientDB
-	if err := c.client.QueryRow("SELECT @@max_digest_length").Scan(&c.maxDigestLength); err != nil {
-		return fmt.Errorf("unable to query @@max_digest_length: %w", err)
-	}
 	return nil
 }
 
@@ -816,7 +812,7 @@ func (c *mySQLClient) explainQuery(digestText, sampleStatement, schema, digest s
 	}
 
 	var plan string
-	err := c.client.QueryRow(buildExplainStatement(sampleStatement)).Scan(&plan)
+	err := c.client.QueryRow("EXPLAIN FORMAT=json " + strings.TrimSpace(sampleStatement)).Scan(&plan)
 	if err != nil {
 		logger.Warn("unable to execute explain statement", zap.String("digest", digest), zap.Error(err))
 		return ""
@@ -825,10 +821,6 @@ func (c *mySQLClient) explainQuery(digestText, sampleStatement, schema, digest s
 		logger.Warn("explain query returned empty plan", zap.String("digest", digest))
 	}
 	return plan
-}
-
-func buildExplainStatement(statement string) string {
-	return "EXPLAIN FORMAT=json " + strings.TrimSpace(statement)
 }
 
 // This function filters out queries that are unsupported by 'EXPLAIN'
