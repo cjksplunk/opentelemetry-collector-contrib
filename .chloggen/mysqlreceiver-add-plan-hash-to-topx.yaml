@@ -8,9 +8,7 @@ component:
   receiver/mysql
 # A brief description of the change.  Surround your text with quotes ("") if it needs to start with a backtick (`).
 note:
-  adding logic and an additional attribute to the MySQL receiver to extract the query plan hash from the query plan and add it as an attribute to the top query log record. This allows users to correlate top queries with their corresponding query plans.
-  also addressed minor code issue with swapped expected and actual values in a test assertion.
-  also fixed error working on errors connecting to MySQL server.
+  Add `mysql.query_plan.hash` attribute to top query log records, enabling users to correlate top queries with their corresponding execution plans.
 # Mandatory: One or more tracking issues related to the change. You can use the PR number here if no issue exists.
 issues: [46626]
 
