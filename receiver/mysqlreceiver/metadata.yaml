@@ -239,7 +239,7 @@ attributes:
     enum: [allow_write, concurrent_insert, low_priority, normal, external]
 events:
   db.server.query_sample:
-    enabled: true
+    enabled: false
     description: |
       Query sample collection enables monitoring of current running database statements.
       This provides real-time visibility into active queries, helping users monitor database activity and performance as part of their observability pipeline.
@@ -262,7 +262,7 @@ events:
       - network.peer.port
 
   db.server.top_query:
-    enabled: true
+    enabled: false
     description: |
       Top query collection enables monitoring of the queries that consumed the most CPU in the database.
       This provides insights into query performance and resource usage, helping users identify and optimize high-impact queries as part of their observability pipeline.
