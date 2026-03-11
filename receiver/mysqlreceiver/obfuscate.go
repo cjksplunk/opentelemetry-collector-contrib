@@ -43,7 +43,7 @@ func (o *obfuscator) obfuscatePlan(plan string) (string, error) {
 var defaultSQLPlanObfuscateSettings = obfuscate.JSONConfig{
 	Enabled: true,
 	ObfuscateSQLValues: []string{
-		// v1 and v2: the full query text
+		// v2: the full query text
 		"query",
 		// v2: SQL condition expression on a filter node
 		"condition",

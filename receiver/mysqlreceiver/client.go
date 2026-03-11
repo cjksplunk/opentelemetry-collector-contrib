@@ -796,17 +796,17 @@ func (c *mySQLClient) getQuerySamples(limit uint64) ([]querySample, error) {
 
 func (c *mySQLClient) explainQuery(digestText, sampleStatement, schema, digest string, logger *zap.Logger) string {
 	if strings.HasSuffix(sampleStatement, "...") {
-		logger.Warn("statement is truncated, skipping explain", zap.String("digest_text", digestText))
+		logger.Debug("statement is truncated, skipping explain", zap.String("digest_text", digestText))
 		return ""
 	}
 	if !isQueryExplainable(digestText) {
-		logger.Warn("statement is not explainable, skipping explain query", zap.String("digest", digest))
+		logger.Debug("statement is not explainable, skipping explain query", zap.String("digest", digest))
 		return ""
 	}
 
 	if schema != "" {
-		if _, err := c.client.Exec(fmt.Sprintf("/* otel-collector-ignore */ USE %s;", schema)); err != nil {
-			logger.Error(fmt.Sprintf("unable to use schema: %s", schema), zap.String("digest", digest), zap.Error(err))
+		if _, err := c.client.Exec(fmt.Sprintf("/* otel-collector-ignore */ USE `%s`;", strings.ReplaceAll(schema, "`", "``"))); err != nil {
+			logger.Warn(fmt.Sprintf("unable to use schema: %s", schema), zap.String("digest", digest), zap.Error(err))
 			return ""
 		}
 	}

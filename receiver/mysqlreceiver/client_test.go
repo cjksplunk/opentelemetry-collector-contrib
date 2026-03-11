@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
 func TestIsQueryExplainable(t *testing.T) {
@@ -77,7 +78,7 @@ func TestIsQueryExplainable(t *testing.T) {
 		// Truncated statements (handled upstream, but isQueryExplainable itself
 		// should not crash; the trailing "..." doesn't match any keyword)
 		{
-			name:     "truncated statement is not explainable",
+			name:     "truncated statement that starts with SELECT is still type-explainable",
 			input:    "SELECT * FROM very_long_table_na...",
 			expected: true, // still starts with SELECT
 		},
@@ -120,8 +121,9 @@ func TestIsQueryExplainable(t *testing.T) {
 			input:    "/*!50001 */ SHOW TABLES",
 			expected: false,
 		},
-		// Plain block comments are NOT executable and should NOT be stripped;
-		// the underlying keyword check will fail since /* is not a keyword
+		// Plain /* */ block comments are NOT MySQL executable comments and must NOT be stripped.
+		// Stripping them would allow "/* bypass */ SELECT ..." to be seen as explainable,
+		// potentially bypassing the truncation guard upstream.
 		{
 			name:     "plain block comment before SELECT is not explainable",
 			input:    "/* a comment */ SELECT * FROM t",
@@ -134,4 +136,24 @@ func TestIsQueryExplainable(t *testing.T) {
 			assert.Equal(t, tt.expected, isQueryExplainable(tt.input))
 		})
 	}
+}
+
+// TestExplainQueryEarlyExits verifies that explainQuery returns "" without
+// hitting the database when the sample statement is truncated or the digest
+// text is not an explainable statement type.
+func TestExplainQueryEarlyExits(t *testing.T) {
+	// mySQLClient with a nil DB — safe because both early-exit paths return
+	// before any database call is made.
+	c := &mySQLClient{}
+	logger := zap.NewNop()
+
+	t.Run("truncated sample statement returns empty", func(t *testing.T) {
+		result := c.explainQuery("SELECT * FROM t", "SELECT * FROM very_long_table_na...", "", "digest1", logger)
+		assert.Equal(t, "", result)
+	})
+
+	t.Run("non-explainable digest text returns empty", func(t *testing.T) {
+		result := c.explainQuery("SHOW TABLES", "SHOW TABLES", "", "digest2", logger)
+		assert.Equal(t, "", result)
+	})
 }

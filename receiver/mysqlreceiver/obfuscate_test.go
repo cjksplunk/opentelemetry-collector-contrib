@@ -73,6 +73,7 @@ func TestObfuscatePlan(t *testing.T) {
 	// MySQL 8.4 EXPLAIN FORMAT=JSON produces two formats:
 	//   Version 1 (default, explain_json_format_version=1): query_block → ordering_operation → table → attached_condition
 	//   Version 2 (explain_json_format_version=2):          query + inputs array, each node has condition/operation/access_type
+	// Fixtures in testdata/obfuscate/ were captured from a MySQL 8.4 instance using EXPLAIN FORMAT=JSON.
 	runPlanTests(t, newObfuscator().obfuscatePlan, []struct {
 		name         string
 		inputFile    string
