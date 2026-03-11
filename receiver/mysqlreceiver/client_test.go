@@ -76,56 +76,16 @@ func TestIsQueryExplainable(t *testing.T) {
 			expected: false,
 		},
 		// Truncated statements (handled upstream, but isQueryExplainable itself
-		// should not crash; the trailing "..." doesn't match any keyword)
+		// should not crash; the trailing "..." doesn’t match any keyword)
 		{
 			name:     "truncated statement that starts with SELECT is still type-explainable",
 			input:    "SELECT * FROM very_long_table_na...",
 			expected: true, // still starts with SELECT
 		},
-		// Leading MySQL version-conditional executable comments (/*! … */)
+		// Any leading block comment makes the query not explainable; digest_text
+		// from performance_schema does not include them, so this won't arise in practice.
 		{
-			name:     "version-conditional comment before SELECT is explainable",
-			input:    "/*!50001 */ SELECT * FROM t",
-			expected: true,
-		},
-		{
-			name:     "version-conditional comment before DELETE is explainable",
-			input:    "/*!80000 SET SESSION optimizer_switch='index_merge=off' */ DELETE FROM t WHERE id = 1",
-			expected: true,
-		},
-		{
-			name:     "multi-line version-conditional comment before SELECT is explainable",
-			input:    "/*!50001\n  CREATE ALGORITHM=UNDEFINED\n*/ SELECT * FROM t",
-			expected: true,
-		},
-		// Leading MySQL optimizer-hint executable comments (/*+ … */)
-		{
-			name:     "optimizer hint comment before SELECT is explainable",
-			input:    "/*+ MAX_EXECUTION_TIME(1000) */ SELECT * FROM t",
-			expected: true,
-		},
-		{
-			name:     "optimizer hint comment before UPDATE is explainable",
-			input:    "/*+ INDEX(t idx_col) */ UPDATE t SET col = 1 WHERE id = 1",
-			expected: true,
-		},
-		// Multiple stacked executable comments
-		{
-			name:     "multiple executable comments before SELECT is explainable",
-			input:    "/*!50001 */\n/*+ MAX_EXECUTION_TIME(1000) */ SELECT * FROM t",
-			expected: true,
-		},
-		// Executable comment prefix before a non-explainable statement
-		{
-			name:     "executable comment before SHOW is not explainable",
-			input:    "/*!50001 */ SHOW TABLES",
-			expected: false,
-		},
-		// Plain /* */ block comments are NOT MySQL executable comments and must NOT be stripped.
-		// Stripping them would allow "/* bypass */ SELECT ..." to be seen as explainable,
-		// potentially bypassing the truncation guard upstream.
-		{
-			name:     "plain block comment before SELECT is not explainable",
+			name:     "leading block comment before SELECT is not explainable",
 			input:    "/* a comment */ SELECT * FROM t",
 			expected: false,
 		},

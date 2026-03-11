@@ -9,7 +9,6 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
-	"regexp"
 	"strings"
 	"text/template"
 	"time"
@@ -19,12 +18,6 @@ import (
 	"github.com/hashicorp/go-version"
 	"go.uber.org/zap"
 )
-
-// mysqlLeadingExecutableComment matches one or more leading MySQL executable
-// comments at the start of a query. MySQL uses /*! … */ for version-conditional
-// execution and /*+ … */ for optimizer hints.
-// See https://dev.mysql.com/doc/refman/8.4/en/extensions-to-ansi.html
-var mysqlLeadingExecutableComment = regexp.MustCompile(`(?s)^(\s*/\*[!+].*?\*/)+`)
 
 type client interface {
 	Connect() error
@@ -835,14 +828,6 @@ func isQueryExplainable(query string) bool {
 	}
 
 	trimmedQuery := strings.TrimSpace(query)
-
-	// Strip leading MySQL executable comments (/*! … */ and /*+ … */) before
-	// checking the keyword so that, e.g., "/*!50001 */ SELECT …" is still
-	// recognized as explainable.
-	if loc := mysqlLeadingExecutableComment.FindStringIndex(trimmedQuery); loc != nil {
-		trimmedQuery = strings.TrimSpace(trimmedQuery[loc[1]:])
-	}
-
 	lowerQuery := strings.ToLower(trimmedQuery)
 
 	for _, keyword := range sqlStartingKeywords {

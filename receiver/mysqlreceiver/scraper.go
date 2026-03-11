@@ -699,8 +699,7 @@ func (m *mySQLScraper) scrapeTopQueries(ctx context.Context, now pcommon.Timesta
 			// attempt to explain the query
 			queryPlan = m.sqlclient.explainQuery(q.digestText, q.querySampleText, q.schemaName, q.digest, m.logger)
 			if queryPlan == "" {
-				// For a likely logged reason, the query plan was not fetched, so log at this level so it may be associated with a digest
-				m.logger.Warn("Failed to obtain query plan", zap.String("schema", q.schemaName), zap.String("digest", q.digestText))
+				m.logger.Debug("query plan not available", zap.String("digest", q.digest), zap.String("digest_text", q.digestText))
 			} else {
 				// Obfuscate the plan
 				queryPlan, err = m.obfuscator.obfuscatePlan(queryPlan)
