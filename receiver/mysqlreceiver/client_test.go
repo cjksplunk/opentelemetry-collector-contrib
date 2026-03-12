@@ -109,11 +109,11 @@ func TestExplainQueryEarlyExits(t *testing.T) {
 
 	t.Run("truncated sample statement returns empty", func(t *testing.T) {
 		result := c.explainQuery("SELECT * FROM t", "SELECT * FROM very_long_table_na...", "", "digest1", logger)
-		assert.Equal(t, "", result)
+		assert.Empty(t, result)
 	})
 
 	t.Run("non-explainable digest text returns empty", func(t *testing.T) {
 		result := c.explainQuery("SHOW TABLES", "SHOW TABLES", "", "digest2", logger)
-		assert.Equal(t, "", result)
+		assert.Empty(t, result)
 	})
 }
