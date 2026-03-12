@@ -184,6 +184,8 @@ github.com/yusufpapurcu/wmi v1.2.4 h1:zFUKzehAFReQwLys1b/iSMl+JQGSCSjtVqQn9bBrPo
 github.com/yusufpapurcu/wmi v1.2.4/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQmPyzfmi0=
 go.opentelemetry.io/auto/sdk v1.2.1 h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=
 go.opentelemetry.io/auto/sdk v1.2.1/go.mod h1:KRTj+aOaElaLi+wW1kO/DZRXwkF4C5xPbEe3ZiIhN7Y=
+go.opentelemetry.io/collector/client v1.53.1-0.20260311224336-8c4f247824d6 h1:CIgffQ0M3jpNJs8mvyxmbrch1Lkv/OsvND+1xVBpZWA=
+go.opentelemetry.io/collector/client v1.53.1-0.20260311224336-8c4f247824d6/go.mod h1:7Tyz93uX4Ur65ApO/EAwk/3aRnNJSwSKWmnHSnHj4eM=
 go.opentelemetry.io/collector/component v1.53.1-0.20260311224336-8c4f247824d6 h1:c9MFNRj3eh7xtZLADGsITq9oXoE6stVtT92borocrTk=
 go.opentelemetry.io/collector/component v1.53.1-0.20260311224336-8c4f247824d6/go.mod h1:/tgJRfWsks4wZYdOxDx9BfXcsl2svmYlkExicqwhkQw=
 go.opentelemetry.io/collector/component/componenttest v0.147.1-0.20260311224336-8c4f247824d6 h1:O1Sb8PuPjwcNNfgRy85Zo8BbUXe6GMIvAzYjoMdm0KA=
