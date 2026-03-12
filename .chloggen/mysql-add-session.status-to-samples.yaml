@@ -10,7 +10,7 @@ component:
 
 # A brief description of the change.  Surround your text with quotes ("") if it needs to start with a backtick (`).
 note:
-    Added `mysql.session.status` attribute to query samples, which indicates the session status (e.g., 'wait', 'running') at the time of the sample. This provides additional context for understanding query performance and behavior.
+    Added `mysql.session.status` and `mysql.session.id` attributes to query samples. `mysql.session.status` indicates the session status (`waiting`, `running`, or `other`) at the time of the sample. `mysql.session.id` provides the unique session identifier. Both attributes provide additional context for understanding query performance and behavior.
 
 # Mandatory: One or more tracking issues related to the change. You can use the PR number here if no issue exists.
 issues: [135350]
