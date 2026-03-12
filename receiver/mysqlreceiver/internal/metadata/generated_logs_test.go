@@ -4,9 +4,6 @@ package metadata
 
 import (
 	"context"
-	"testing"
-	"time"
-
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
@@ -14,6 +11,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
+	"testing"
+	"time"
 )
 
 type eventsTestDataSet int
@@ -198,7 +197,7 @@ func TestLogsBuilder(t *testing.T) {
 					attrVal, ok = lr.Attributes().Get("mysql.session.status")
 					assert.True(t, ok)
 					assert.Equal(t, "mysql.session.status-val", attrVal.Str())
-					attrVal, ok = lr.Attributes().Get("mysql.session_id")
+					attrVal, ok = lr.Attributes().Get("mysql.session.id")
 					assert.True(t, ok)
 					assert.EqualValues(t, 16, attrVal.Int())
 					attrVal, ok = lr.Attributes().Get("mysql.events_waits_current.timer_wait")

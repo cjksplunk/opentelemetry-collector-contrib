@@ -36,7 +36,7 @@ resourceLogs:
               - key: mysql.session.status
                 value:
                   stringValue: 'waiting'
-              - key: mysql.session_id
+              - key: mysql.session.id
                 value:
                   intValue: "-54321"
               - key: mysql.events_waits_current.timer_wait
