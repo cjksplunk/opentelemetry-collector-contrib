@@ -13,7 +13,8 @@ SELECT
         WHEN wait.thread_id IS NOT NULL
             AND wait.end_event_id IS NULL THEN 'waiting'
         -- actively executing on CPU
-        WHEN COALESCE(statement.sql_text, thread.processlist_info) <> '' THEN 'running'
+         WHEN statement.thread_id IS NOT NULL
+              AND COALESCE(statement.sql_text, thread.processlist_info) <> '' THEN 'running'
         -- fallback
         ELSE 'other'
     END AS session_status,
