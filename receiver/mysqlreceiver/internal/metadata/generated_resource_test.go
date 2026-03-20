@@ -32,26 +32,25 @@ func TestResourceBuilder(t *testing.T) {
 			default:
 				assert.Failf(t, "unexpected test case: %s", tt)
 			}
-
-			val, ok := res.Attributes().Get("mysql.instance.endpoint")
+			mysqlInstanceEndpointAttrVal, ok := res.Attributes().Get("mysql.instance.endpoint")
 			assert.True(t, ok)
 			if ok {
-				assert.Equal(t, "mysql.instance.endpoint-val", val.Str())
+				assert.Equal(t, "mysql.instance.endpoint-val", mysqlInstanceEndpointAttrVal.Str())
 			}
-			val, ok = res.Attributes().Get("service.instance.id")
+			serviceInstanceIDAttrVal, ok := res.Attributes().Get("service.instance.id")
 			assert.Equal(t, tt == "all_set", ok)
 			if ok {
-				assert.Equal(t, "service.instance.id-val", val.Str())
+				assert.Equal(t, "service.instance.id-val", serviceInstanceIDAttrVal.Str())
 			}
-			val, ok = res.Attributes().Get("service.name")
+			serviceNameAttrVal, ok := res.Attributes().Get("service.name")
 			assert.Equal(t, tt == "all_set", ok)
 			if ok {
-				assert.Equal(t, "service.name-val", val.Str())
+				assert.Equal(t, "service.name-val", serviceNameAttrVal.Str())
 			}
-			val, ok = res.Attributes().Get("service.namespace")
+			serviceNamespaceAttrVal, ok := res.Attributes().Get("service.namespace")
 			assert.Equal(t, tt == "all_set", ok)
 			if ok {
-				assert.Equal(t, "service.namespace-val", val.Str())
+				assert.Equal(t, "service.namespace-val", serviceNamespaceAttrVal.Str())
 			}
 		})
 	}
