@@ -757,7 +757,7 @@ func (m *mySQLScraper) scrapeQuerySamples(ctx context.Context, now pcommon.Times
 		if sample.traceparent != "" {
 			recordCtx, err = contextWithTraceparent(baseCtx, sample.traceparent)
 			if err != nil {
-				m.logger.Warn("Invalid traceparent; omitting trace context", zap.String("presented-traceparent", sample.traceparent))
+				m.logger.Warn("Invalid traceparent; omitting trace context", zap.String("presented-traceparent", sample.traceparent), zap.Error(err))
 			}
 		}
 
