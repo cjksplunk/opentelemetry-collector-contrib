@@ -164,6 +164,12 @@ attributes:
   mysql.query_plan.hash:
     description: This attribute is set to the same value as mysql.events_statements_summary_by_digest.digest (query digest) by design.
     type: string
+  mysql.session.id:
+    description: The unique identifier for the session associated with the event.
+    type: int
+  mysql.session.status:
+    description: Simplified session status, either 'waiting', 'running' or 'other'.
+    type: string
   mysql.threads.processlist_command:
     description: The type of command the thread is executing on behalf of the client for foreground threads, or `Sleep` if the session is idle.
     type: string
@@ -290,6 +296,8 @@ events:
       - mysql.query_plan.hash
       - mysql.event_id
       - mysql.wait_type
+      - mysql.session.status
+      - mysql.session.id
       - mysql.events_waits_current.timer_wait
       - client.address
       - client.port
