@@ -6,10 +6,9 @@ package staticobserver
 import (
 	"testing"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer"
 )
 
 type mockNotify struct {
@@ -19,10 +18,10 @@ type mockNotify struct {
 	changed []observer.Endpoint
 }
 
-func (m *mockNotify) ID() observer.NotifyID            { return m.id }
-func (m *mockNotify) OnAdd(added []observer.Endpoint)  { m.added = append(m.added, added...) }
-func (m *mockNotify) OnRemove(r []observer.Endpoint)   { m.removed = append(m.removed, r...) }
-func (m *mockNotify) OnChange(c []observer.Endpoint)   { m.changed = append(m.changed, c...) }
+func (m *mockNotify) ID() observer.NotifyID           { return m.id }
+func (m *mockNotify) OnAdd(added []observer.Endpoint) { m.added = append(m.added, added...) }
+func (m *mockNotify) OnRemove(r []observer.Endpoint)  { m.removed = append(m.removed, r...) }
+func (m *mockNotify) OnChange(c []observer.Endpoint)  { m.changed = append(m.changed, c...) }
 
 func TestListAndWatchFiresStaticEndpoint(t *testing.T) {
 	s := &staticObserver{}
