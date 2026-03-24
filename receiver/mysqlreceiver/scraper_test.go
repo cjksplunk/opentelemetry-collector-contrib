@@ -5,6 +5,7 @@ package mysqlreceiver
 
 import (
 	"bufio"
+	"context"
 	"database/sql"
 	"os"
 	"path/filepath"
@@ -118,7 +119,7 @@ func TestScrape(t *testing.T) {
 		expectedTopQueries, err := golden.ReadLogs(expectedTopQueriesFile)
 		require.NoError(t, err)
 
-		require.NoError(t, plogtest.CompareLogs(actualTopQueries, expectedTopQueries,
+		require.NoError(t, plogtest.CompareLogs(expectedTopQueries, actualTopQueries,
 			plogtest.IgnoreTimestamp()))
 	})
 
@@ -220,6 +221,35 @@ func TestContextWithTraceparent(t *testing.T) {
 		assert.Equal(t, ctx, t.Context())
 		spanCtx := trace.SpanContextFromContext(ctx)
 		assert.False(t, spanCtx.IsValid())
+	})
+
+	t.Run("collector span is stripped before traceparent extraction", func(t *testing.T) {
+		// Simulate a context carrying a live collector-internal span. The span
+		// context on the returned context must come from the traceparent, not
+		// from the collector span.
+		collectorTraceID, _ := trace.TraceIDFromHex("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+		collectorSpanID, _ := trace.SpanIDFromHex("bbbbbbbbbbbbbbbb")
+		collectorSpanCtx := trace.NewSpanContext(trace.SpanContextConfig{
+			TraceID:    collectorTraceID,
+			SpanID:     collectorSpanID,
+			TraceFlags: trace.FlagsSampled,
+			Remote:     false,
+		})
+		ctxWithCollectorSpan := trace.ContextWithSpanContext(t.Context(), collectorSpanCtx)
+
+		// Strip the collector span (as scrapeQuerySamples does) then extract.
+		// context.Background() is intentional here: SpanFromContext(Background()) returns a
+		// no-op span, which is what we use to strip the collector span from ctxWithCollectorSpan.
+		// t.Context() would also work but is semantically misleading in this context.
+		noopSpan := trace.SpanFromContext(context.Background()) //nolint:usetesting
+		baseCtx := trace.ContextWithSpan(ctxWithCollectorSpan, noopSpan)
+		resultCtx, err := contextWithTraceparent(baseCtx, "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+		require.NoError(t, err)
+
+		spanCtx := trace.SpanContextFromContext(resultCtx)
+		require.True(t, spanCtx.IsValid())
+		assert.Equal(t, "4bf92f3577b34da6a3ce929d0e0e4736", spanCtx.TraceID().String(), "TraceID must come from traceparent, not collector span")
+		assert.Equal(t, "00f067aa0ba902b7", spanCtx.SpanID().String(), "SpanID must come from traceparent, not collector span")
 	})
 }
 

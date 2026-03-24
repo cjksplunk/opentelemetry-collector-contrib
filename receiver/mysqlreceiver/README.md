@@ -97,7 +97,16 @@ Details about the metrics produced by this receiver can be found in [metadata.ya
 ## Logs
 Details about the logs produced by this receiver can be found in [documentation.md](./documentation.md)
 
-NOTE: if `traceparent` is set on a query, samples collection will now map that value to the existing Open Telemetry TraceID and SpanID for the corresponding log record. This enables the ability to trace application transactions to measured events produced by this receiver.
+**Trace propagation:** If a MySQL session sets the `@traceparent` user variable
+(W3C TraceContext format, lowercase name), the query sample collector extracts
+the TraceID and SpanID from that value and stamps them onto the corresponding
+log record. This allows application transactions to be correlated with query
+samples collected by this receiver.
+
+> **Note:** `VARIABLE_NAME` in `performance_schema.user_variables_by_thread`
+> stores the variable name in the case it was originally set. The collector
+> matches it as `'traceparent'` (lowercase), so clients must set the variable
+> using exactly `SET @traceparent = '...'`.
 ### MySQL Requirements to enable log collection
 
 | Parameter                                | Value                            | Description                                         |
