@@ -65,16 +65,7 @@ func TestScrape(t *testing.T) {
 		cfg.LogsBuilderConfig.Events.DbServerQuerySample.Enabled = true
 		cfg.LogsBuilderConfig.Events.DbServerTopQuery.Enabled = true
 
-		// resource attriubtes
-		cfg.MetricsBuilderConfig.ResourceAttributes.ServiceInstanceID.Enabled = true
-		cfg.Endpoint = "localhost:3306"
-		cfg.ResourceOverrides = map[string]string{
-			"service.name":      "mysql",
-			"service.namespace": "mynamespace",
-		}
-
 		scraper := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](100), newTTLCache[string](0, time.Hour*24*365*10))
-		scraper.resourceAttributeProcessor, _ = scraper.getResourceAttrProc()
 		scraper.sqlclient = &mockClient{
 			globalStatsFile:             "global_stats",
 			innodbStatsFile:             "innodb_stats",
@@ -499,19 +490,17 @@ func (c *mockClient) getQuerySamples(uint64) ([]querySample, error) {
 		var s querySample
 		text := strings.Split(scanner.Text(), "\t")
 
-		s.sessionID, _ = parseInt(text[0])
-		s.threadID, _ = parseInt(text[1])
-		s.processlistUser = text[2]
-		s.processlistHost = text[3]
-		s.processlistDB = text[4]
-		s.processlistCommand = text[5]
-		s.processlistState = text[6]
-		s.sqlText = text[7]
-		s.digest = text[8]
-		s.eventID, _ = parseInt(text[9])
-		s.sessionStatus = text[10]
-		s.waitEvent = text[11]
-		s.waitTime, _ = strconv.ParseFloat(text[12], 64)
+		s.threadID, _ = parseInt(text[0])
+		s.processlistUser = text[1]
+		s.processlistHost = text[2]
+		s.processlistDB = text[3]
+		s.processlistCommand = text[4]
+		s.processlistState = text[5]
+		s.sqlText = text[6]
+		s.digest = text[7]
+		s.eventID, _ = parseInt(text[8])
+		s.waitEvent = text[9]
+		s.waitTime, _ = strconv.ParseFloat(text[10], 64)
 
 		samples = append(samples, s)
 	}

@@ -23,21 +23,19 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/priorityqueue"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/attraction"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/mysqlreceiver/internal/metadata"
 )
 
 type mySQLScraper struct {
-	sqlclient                  client
-	logger                     *zap.Logger
-	config                     *Config
-	mb                         *metadata.MetricsBuilder
-	lb                         *metadata.LogsBuilder
-	cache                      *lru.Cache[string, int64]
-	queryPlanCache             *expirable.LRU[string, string]
-	obfuscator                 *obfuscator
-	lastExecutionTimestamp     time.Time
-	resourceAttributeProcessor attraction.AttrProc
+	sqlclient              client
+	logger                 *zap.Logger
+	config                 *Config
+	mb                     *metadata.MetricsBuilder
+	lb                     *metadata.LogsBuilder
+	cache                  *lru.Cache[string, int64]
+	queryPlanCache         *expirable.LRU[string, string]
+	obfuscator             *obfuscator
+	lastExecutionTimestamp time.Time
 
 	// Feature gates regarding resource attributes
 	renameCommands bool
@@ -74,14 +72,6 @@ func (m *mySQLScraper) start(_ context.Context, _ component.Host) error {
 	}
 	m.sqlclient = sqlclient
 
-	attrProc, err := m.getResourceAttrProc()
-	if err != nil {
-		_ = sqlclient.Close()
-		m.sqlclient = nil
-		return err
-	}
-	m.resourceAttributeProcessor = attrProc
-
 	return nil
 }
 
@@ -94,7 +84,7 @@ func (m *mySQLScraper) shutdown(context.Context) error {
 }
 
 // scrape scrapes the mysql db metric stats, transforms them and labels them into a metric slices.
-func (m *mySQLScraper) scrape(ctx context.Context) (pmetric.Metrics, error) {
+func (m *mySQLScraper) scrape(context.Context) (pmetric.Metrics, error) {
 	if m.sqlclient == nil {
 		return pmetric.Metrics{}, errors.New("failed to connect to http client")
 	}
@@ -134,7 +124,9 @@ func (m *mySQLScraper) scrape(ctx context.Context) (pmetric.Metrics, error) {
 	// collect replicas status metrics.
 	m.scrapeReplicaStatusStats(now)
 
-	m.mb.EmitForResource(metadata.WithResource(m.getResource(ctx)))
+	rb := m.mb.NewResourceBuilder()
+	rb.SetMysqlInstanceEndpoint(m.config.Endpoint)
+	m.mb.EmitForResource(metadata.WithResource(rb.Emit()))
 
 	return m.mb.Emit(), errs.Combine()
 }
@@ -153,7 +145,6 @@ func (m *mySQLScraper) scrapeTopQueryFunc(ctx context.Context) (plog.Logs, error
 	} else {
 		m.scrapeTopQueries(ctx, now, errs)
 	}
-	m.lb.EmitForResource(metadata.WithLogsResource(m.getResource(ctx)))
 	return m.lb.Emit(), errs.Combine()
 }
 
@@ -168,7 +159,6 @@ func (m *mySQLScraper) scrapeQuerySampleFunc(ctx context.Context) (plog.Logs, er
 
 	m.scrapeQuerySamples(ctx, now, errs)
 
-	m.lb.EmitForResource(metadata.WithLogsResource(m.getResource(ctx)))
 	return m.lb.Emit(), errs.Combine()
 }
 
@@ -769,8 +759,6 @@ func (m *mySQLScraper) scrapeQuerySamples(ctx context.Context, now pcommon.Times
 			sample.digest,
 			sample.eventID,
 			sample.waitEvent,
-			sample.sessionStatus,
-			sample.sessionID,
 			sample.waitTime,
 			clientAddress,
 			clientPort,
@@ -875,39 +863,4 @@ func sortTopQueries(queries []topQuery, values []int64, maximum uint64) []topQue
 		results = append(results, item.Value)
 	}
 	return results
-}
-
-func (m *mySQLScraper) getResourceAttrProc() (attraction.AttrProc, error) {
-	var actions []attraction.ActionKeyValue
-	for k, v := range m.config.ResourceOverrides {
-		act := attraction.ActionKeyValue{
-			Key:    k,
-			Value:  v,
-			Action: attraction.UPSERT, // always upsert
-		}
-		actions = append(actions, act)
-	}
-	settings := attraction.Settings{
-		Actions: actions,
-	}
-	attrProc, err := attraction.NewAttrProc(&settings)
-	if err != nil {
-		m.logger.Warn("Failed to create attr proc", zap.Error(err))
-		return attraction.AttrProc{}, err
-	}
-	return *attrProc, nil
-}
-
-func (m *mySQLScraper) applyResourceOverrides(ctx context.Context, resource pcommon.Resource) pcommon.Resource {
-	m.resourceAttributeProcessor.Process(ctx, m.logger, resource.Attributes())
-	return resource
-}
-
-func (m *mySQLScraper) getResource(ctx context.Context) pcommon.Resource {
-	rb := m.mb.NewResourceBuilder()
-	rb.SetMysqlInstanceEndpoint(m.config.Endpoint)
-	rb.SetServiceInstanceID(m.config.Endpoint)
-	rb.SetServiceName(metadata.AttributeDbSystemNameMysql.String())
-	rb.SetServiceNamespace("default")
-	return m.applyResourceOverrides(ctx, rb.Emit())
 }

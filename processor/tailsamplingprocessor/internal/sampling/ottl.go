@@ -117,7 +117,3 @@ func (ocf *ottlConditionFilter) Evaluate(ctx context.Context, traceID pcommon.Tr
 	}
 	return samplingpolicy.NotSampled, nil
 }
-
-func (*ottlConditionFilter) IsStateful() bool {
-	return false
-}

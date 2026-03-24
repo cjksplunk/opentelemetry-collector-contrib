@@ -64,10 +64,6 @@ func (t *TestPolicyEvaluator) Evaluate(ctx context.Context, traceID pcommon.Trac
 	return t.pe.Evaluate(ctx, traceID, trace)
 }
 
-func (t *TestPolicyEvaluator) IsStateful() bool {
-	return t.pe.IsStateful()
-}
-
 // testTSPController is a set of mechanisms to make the TSP do predictable
 // things in tests.
 type testTSPController struct {
@@ -202,9 +198,8 @@ func TestTraceIntegrity(t *testing.T) {
 
 	controller := newTestTSPController()
 	cfg := Config{
-		SamplingStrategy: samplingStrategyTraceComplete,
-		DecisionWait:     defaultTestDecisionWait,
-		NumTraces:        defaultNumTraces,
+		DecisionWait: defaultTestDecisionWait,
+		NumTraces:    defaultNumTraces,
 		Options: []Option{
 			withPolicies(policies),
 			withTestController(controller),
@@ -218,20 +213,20 @@ func TestTraceIntegrity(t *testing.T) {
 		require.NoError(t, p.Shutdown(t.Context()))
 	}()
 
-	mpe1.SetDecision(samplingpolicy.Sampled)
+	mpe1.NextDecision = samplingpolicy.Sampled
 
 	// Generate and deliver first span
 	require.NoError(t, p.ConsumeTraces(t.Context(), traces))
 
 	// The first tick won't do anything
 	controller.waitForTick()
-	require.Equal(t, 0, mpe1.EvaluationCount())
+	require.Equal(t, 0, mpe1.EvaluationCount)
 
 	// This will cause policy evaluations on the first span
 	controller.waitForTick()
 
 	// Both policies should have been evaluated once
-	assert.Equal(t, 4, mpe1.EvaluationCount())
+	assert.Equal(t, 4, mpe1.EvaluationCount)
 
 	consumed := nextConsumer.AllTraces()
 	require.Len(t, consumed, 4)
@@ -256,7 +251,6 @@ func TestSequentialTraceArrival(t *testing.T) {
 	traceIDs, batches := generateIDsAndBatches(128)
 	controller := newTestTSPController()
 	cfg := Config{
-		SamplingStrategy:        samplingStrategyTraceComplete,
 		DecisionWait:            defaultTestDecisionWait,
 		NumTraces:               uint64(2 * len(traceIDs)),
 		ExpectedNewTracesPerSec: 64,
@@ -305,7 +299,6 @@ func TestConcurrentTraceArrival(t *testing.T) {
 	controller := newTestTSPController()
 	var wg sync.WaitGroup
 	cfg := Config{
-		SamplingStrategy:        samplingStrategyTraceComplete,
 		DecisionWait:            defaultTestDecisionWait,
 		NumTraces:               uint64(2 * len(traceIDs)),
 		ExpectedNewTracesPerSec: 64,
@@ -374,7 +367,6 @@ func TestConcurrentArrivalAndEvaluation(t *testing.T) {
 
 	var wg sync.WaitGroup
 	cfg := Config{
-		SamplingStrategy:        samplingStrategyTraceComplete,
 		DecisionWait:            defaultTestDecisionWait,
 		NumTraces:               uint64(2 * len(traceIDs)),
 		ExpectedNewTracesPerSec: 64,
@@ -416,7 +408,6 @@ func TestSequentialTraceMapSize(t *testing.T) {
 	controller := newTestTSPController()
 	traceIDs, batches := generateIDsAndBatches(210)
 	cfg := Config{
-		SamplingStrategy:        samplingStrategyTraceComplete,
 		DecisionWait:            defaultTestDecisionWait,
 		NumTraces:               defaultNumTraces,
 		ExpectedNewTracesPerSec: 64,
@@ -492,8 +483,7 @@ func TestConsumptionDuringPolicyEvaluation(t *testing.T) {
 	// prepare
 	msp := new(consumertest.TracesSink)
 	cfg := Config{
-		SamplingStrategy: samplingStrategyTraceComplete,
-		DecisionWait:     10 * time.Millisecond,
+		DecisionWait: 10 * time.Millisecond,
 		// idToTrace map size is 2x the number of batches, to eliminate "expected"
 		// dropped too early errors.
 		NumTraces:  uint64(numBatches * 2),
@@ -568,9 +558,8 @@ func TestMultipleBatchesAreCombinedIntoOne(t *testing.T) {
 	msp := new(consumertest.TracesSink)
 
 	cfg := Config{
-		SamplingStrategy: samplingStrategyTraceComplete,
-		DecisionWait:     defaultTestDecisionWait,
-		NumTraces:        defaultNumTraces,
+		DecisionWait: defaultTestDecisionWait,
+		NumTraces:    defaultNumTraces,
 		PolicyCfgs: []PolicyCfg{
 			{
 				sharedPolicyCfg: sharedPolicyCfg{
@@ -642,9 +631,8 @@ func TestSetSamplingPolicy(t *testing.T) {
 	telem := setupTestTelemetry()
 
 	cfg := Config{
-		SamplingStrategy: samplingStrategyTraceComplete,
-		DecisionWait:     defaultTestDecisionWait,
-		NumTraces:        defaultNumTraces,
+		DecisionWait: defaultTestDecisionWait,
+		NumTraces:    defaultNumTraces,
 		PolicyCfgs: []PolicyCfg{
 			{
 				sharedPolicyCfg: sharedPolicyCfg{
@@ -721,10 +709,9 @@ func TestSubSecondDecisionTime(t *testing.T) {
 	// prepare
 	msp := new(consumertest.TracesSink)
 	tsp, err := newTracesProcessor(t.Context(), processortest.NewNopSettings(metadata.Type), msp, Config{
-		SamplingStrategy: samplingStrategyTraceComplete,
-		DecisionWait:     500 * time.Millisecond,
-		NumTraces:        defaultNumTraces,
-		PolicyCfgs:       testPolicy,
+		DecisionWait: 500 * time.Millisecond,
+		NumTraces:    defaultNumTraces,
+		PolicyCfgs:   testPolicy,
 		Options: []Option{
 			withTickerFrequency(10 * time.Millisecond),
 		},
@@ -779,9 +766,8 @@ func TestDuplicatePolicyName(t *testing.T) {
 	}
 
 	p, err := newTracesProcessor(t.Context(), processortest.NewNopSettings(metadata.Type), msp, Config{
-		SamplingStrategy: samplingStrategyTraceComplete,
-		DecisionWait:     defaultTestDecisionWait,
-		NumTraces:        defaultNumTraces,
+		DecisionWait: defaultTestDecisionWait,
+		NumTraces:    defaultNumTraces,
 		PolicyCfgs: []PolicyCfg{
 			{sharedPolicyCfg: alwaysSample},
 			{sharedPolicyCfg: alwaysSample},
@@ -803,9 +789,8 @@ func TestDropPolicyIsFirstInPolicyList(t *testing.T) {
 	msp := new(consumertest.TracesSink)
 
 	cfg := Config{
-		SamplingStrategy: samplingStrategyTraceComplete,
-		DecisionWait:     defaultTestDecisionWait,
-		NumTraces:        defaultNumTraces,
+		DecisionWait: defaultTestDecisionWait,
+		NumTraces:    defaultNumTraces,
 		PolicyCfgs: []PolicyCfg{
 			{
 				sharedPolicyCfg: sharedPolicyCfg{
@@ -897,9 +882,8 @@ func TestDecisionHooks(t *testing.T) {
 	}
 
 	cfg := Config{
-		SamplingStrategy: samplingStrategyTraceComplete,
-		DecisionWait:     defaultTestDecisionWait,
-		NumTraces:        defaultNumTraces,
+		DecisionWait: defaultTestDecisionWait,
+		NumTraces:    defaultNumTraces,
 		PolicyCfgs: []PolicyCfg{
 			{
 				sharedPolicyCfg: sharedPolicyCfg{
@@ -1035,43 +1019,16 @@ func uInt64ToSpanID(id uint64) pcommon.SpanID {
 }
 
 type mockPolicyEvaluator struct {
-	mu sync.Mutex
-
-	nextDecision    samplingpolicy.Decision
-	nextError       error
-	evaluationCount int
+	NextDecision    samplingpolicy.Decision
+	NextError       error
+	EvaluationCount int
 }
 
 var _ samplingpolicy.Evaluator = (*mockPolicyEvaluator)(nil)
 
 func (m *mockPolicyEvaluator) Evaluate(context.Context, pcommon.TraceID, *samplingpolicy.TraceData) (samplingpolicy.Decision, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.evaluationCount++
-	return m.nextDecision, m.nextError
-}
-
-func (*mockPolicyEvaluator) IsStateful() bool {
-	return false
-}
-
-func (m *mockPolicyEvaluator) SetDecision(decision samplingpolicy.Decision) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.nextDecision = decision
-}
-
-func (m *mockPolicyEvaluator) SetError(nextError error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.nextError = nextError
-}
-
-func (m *mockPolicyEvaluator) EvaluationCount() int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.evaluationCount
+	m.EvaluationCount++
+	return m.NextDecision, m.NextError
 }
 
 type syncIDBatcher struct {
@@ -1269,7 +1226,6 @@ func TestDropLargeTraces(t *testing.T) {
 	sp.Attributes().PutStr("foo", "short")
 
 	cfg := Config{
-		SamplingStrategy:        samplingStrategyTraceComplete,
 		DecisionWait:            defaultTestDecisionWait,
 		NumTraces:               uint64(4),
 		ExpectedNewTracesPerSec: 64,
@@ -1392,7 +1348,6 @@ func TestDeleteQueueCleared(t *testing.T) {
 
 	traceIDs, batches := generateIDsAndBatches(128)
 	cfg := Config{
-		SamplingStrategy:        samplingStrategyTraceComplete,
 		DecisionWait:            defaultTestDecisionWait,
 		NumTraces:               uint64(2 * len(traceIDs)),
 		ExpectedNewTracesPerSec: 64,
@@ -1436,7 +1391,6 @@ func TestDeleteQueueCleared(t *testing.T) {
 func TestRootReceivedBatcher(t *testing.T) {
 	traceIDs, batches := generateIDsAndBatches(128)
 	cfg := Config{
-		SamplingStrategy:        samplingStrategyTraceComplete,
 		DecisionWait:            time.Minute,
 		NumTraces:               uint64(2 * len(traceIDs)),
 		ExpectedNewTracesPerSec: 64,
@@ -1487,9 +1441,8 @@ func TestExtension(t *testing.T) {
 	msp := new(consumertest.TracesSink)
 
 	cfg := Config{
-		SamplingStrategy: samplingStrategyTraceComplete,
-		DecisionWait:     defaultTestDecisionWait,
-		NumTraces:        defaultNumTraces,
+		DecisionWait: defaultTestDecisionWait,
+		NumTraces:    defaultNumTraces,
 		PolicyCfgs: []PolicyCfg{
 			{
 				sharedPolicyCfg: sharedPolicyCfg{

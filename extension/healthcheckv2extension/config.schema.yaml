@@ -1,4 +1,0 @@
-type: object
-allOf:
-  - description: Config re-exports the internal healthcheck Config type
-    $ref: /internal/healthcheck.config

@@ -16,7 +16,6 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"github.com/tilinna/clock"
 	"go.opentelemetry.io/collector/config/configcompression"
-	"go.uber.org/zap"
 )
 
 type Manager interface {
@@ -31,7 +30,6 @@ type UploadOptions struct {
 }
 
 type s3manager struct {
-	logger       *zap.Logger
 	bucket       string
 	builder      *PartitionKeyBuilder
 	uploader     *transfermanager.Client
@@ -41,9 +39,8 @@ type s3manager struct {
 
 var _ Manager = (*s3manager)(nil)
 
-func NewS3Manager(logger *zap.Logger, bucket string, builder *PartitionKeyBuilder, service *s3.Client, storageClass s3types.StorageClass, opts ...ManagerOpt) Manager {
+func NewS3Manager(bucket string, builder *PartitionKeyBuilder, service *s3.Client, storageClass s3types.StorageClass, opts ...ManagerOpt) Manager {
 	manager := &s3manager{
-		logger:       logger,
 		bucket:       bucket,
 		builder:      builder,
 		uploader:     transfermanager.New(service),
@@ -87,10 +84,9 @@ func (sw *s3manager) Upload(ctx context.Context, data []byte, opts *UploadOption
 		}
 	}
 
-	key := sw.builder.Build(now, overridePrefix)
 	uploadInput := &transfermanager.UploadObjectInput{
 		Bucket:       aws.String(overrideBucket),
-		Key:          aws.String(key),
+		Key:          aws.String(sw.builder.Build(now, overridePrefix)),
 		Body:         content,
 		StorageClass: transfermanagertypes.StorageClass(sw.storageClass),
 		ACL:          transfermanagertypes.ObjectCannedACL(sw.acl),
@@ -101,7 +97,6 @@ func (sw *s3manager) Upload(ctx context.Context, data []byte, opts *UploadOption
 		uploadInput.ContentEncoding = aws.String(encoding)
 	}
 
-	sw.logger.Debug("uploading object", zap.String("bucket", overrideBucket), zap.String("key", key))
 	_, err = sw.uploader.UploadObject(ctx, uploadInput)
 	return err
 }

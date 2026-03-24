@@ -74,7 +74,3 @@ func (baf *booleanAttributeFilter) Evaluate(_ context.Context, _ pcommon.TraceID
 			return false
 		}), nil
 }
-
-func (*booleanAttributeFilter) IsStateful() bool {
-	return false
-}

@@ -55,7 +55,3 @@ func (l *latency) Evaluate(_ context.Context, _ pcommon.TraceID, traceData *samp
 		return (l.thresholdMs < duration.Milliseconds() && duration.Milliseconds() <= l.upperThresholdMs)
 	}), nil
 }
-
-func (*latency) IsStateful() bool {
-	return false
-}

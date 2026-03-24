@@ -21,10 +21,9 @@ func (f healthyFunc) isHealthy(ev status.Event) bool {
 }
 
 type serializationOptions struct {
-	includeStartTime  bool
-	startTimestamp    *time.Time
-	healthyFunc       healthyFunc
-	includeAttributes bool
+	includeStartTime bool
+	startTimestamp   *time.Time
+	healthyFunc      healthyFunc
 }
 
 type serializableStatus struct {
@@ -35,11 +34,10 @@ type serializableStatus struct {
 
 // SerializableEvent is exported for json.Unmarshal
 type SerializableEvent struct {
-	Healthy      bool           `json:"healthy"`
-	StatusString string         `json:"status"`
-	Error        string         `json:"error,omitempty"`
-	Timestamp    time.Time      `json:"status_time"`
-	Attributes   map[string]any `json:"attributes"`
+	Healthy      bool      `json:"healthy"`
+	StatusString string    `json:"status"`
+	Error        string    `json:"error,omitempty"`
+	Timestamp    time.Time `json:"status_time"`
 }
 
 var stringToStatusMap = map[string]componentstatus.Status{
@@ -60,22 +58,12 @@ func (ev *SerializableEvent) Status() componentstatus.Status {
 	return componentstatus.StatusNone
 }
 
-func toSerializableEvent(ev status.Event, isHealthy, includeAttributes bool) *SerializableEvent {
+func toSerializableEvent(ev status.Event, isHealthy bool) *SerializableEvent {
 	se := &SerializableEvent{
 		Healthy:      isHealthy,
 		StatusString: ev.Status().String(),
 		Timestamp:    ev.Timestamp(),
-		Attributes:   map[string]any{},
 	}
-
-	if includeAttributes {
-		attrs := ev.Attributes()
-		attrLen := attrs.Len()
-		if attrLen > 0 {
-			se.Attributes = attrs.AsRaw()
-		}
-	}
-
 	if ev.Err() != nil {
 		se.Error = ev.Err().Error()
 	}
@@ -90,7 +78,6 @@ func toSerializableStatus(
 		SerializableEvent: toSerializableEvent(
 			st.Event,
 			opts.healthyFunc.isHealthy(st.Event),
-			opts.includeAttributes,
 		),
 		ComponentStatuses: make(map[string]*serializableStatus),
 	}

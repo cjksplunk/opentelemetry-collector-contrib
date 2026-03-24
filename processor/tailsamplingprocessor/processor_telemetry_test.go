@@ -6,7 +6,6 @@ package tailsamplingprocessor
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,9 +32,8 @@ func TestMetricsAfterOneEvaluation(t *testing.T) {
 	controller := newTestTSPController()
 
 	cfg := Config{
-		SamplingStrategy: samplingStrategyTraceComplete,
-		DecisionWait:     1,
-		NumTraces:        100,
+		DecisionWait: 1,
+		NumTraces:    100,
 		PolicyCfgs: []PolicyCfg{
 			{
 				sharedPolicyCfg: sharedPolicyCfg{
@@ -245,100 +243,14 @@ func TestMetricsAfterOneEvaluation(t *testing.T) {
 	assert.Len(t, cs.AllTraces(), 1)
 }
 
-func TestMetricsSpanIngestModeRecordIngestDecisionTelemetry(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		strategy samplingStrategy
-	}{
-		{name: "span-ingest", strategy: samplingStrategySpanIngest},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			s := setupTestTelemetry()
-			cfg := Config{
-				SamplingStrategy: tc.strategy,
-				DecisionWait:     1,
-				NumTraces:        100,
-				PolicyCfgs: []PolicyCfg{
-					{
-						sharedPolicyCfg: sharedPolicyCfg{
-							Name: "always",
-							Type: AlwaysSample,
-						},
-					},
-				},
-			}
-			cs := &consumertest.TracesSink{}
-			ct := s.newSettings()
-			proc, err := newTracesProcessor(t.Context(), ct, cs, cfg)
-			require.NoError(t, err)
-			require.NoError(t, proc.Start(t.Context(), componenttest.NewNopHost()))
-			defer func() {
-				require.NoError(t, proc.Shutdown(t.Context()))
-			}()
-
-			traces := ptrace.NewTraces()
-			span := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
-			span.SetTraceID(uInt64ToTraceID(101))
-			span.SetSpanID(uInt64ToSpanID(1))
-			require.NoError(t, proc.ConsumeTraces(t.Context(), traces))
-			require.Eventually(t, func() bool {
-				return cs.SpanCount() == 1
-			}, time.Second, 10*time.Millisecond)
-
-			var md metricdata.ResourceMetrics
-			require.NoError(t, s.reader.Collect(t.Context(), &md))
-
-			metricdatatest.AssertEqual(t, metricdata.Metrics{
-				Name:        "otelcol_processor_tail_sampling_global_count_traces_sampled",
-				Description: "Global count of traces that were sampled or not by at least one policy [Development]",
-				Unit:        "{traces}",
-				Data: metricdata.Sum[int64]{
-					IsMonotonic: true,
-					Temporality: metricdata.CumulativeTemporality,
-					DataPoints: []metricdata.DataPoint[int64]{
-						{
-							Attributes: attribute.NewSet(
-								attribute.String("sampled", "true"),
-								attribute.String("decision", "sampled"),
-							),
-							Value: 1,
-						},
-					},
-				},
-			}, s.getMetric("otelcol_processor_tail_sampling_global_count_traces_sampled", md), metricdatatest.IgnoreTimestamp())
-
-			metricdatatest.AssertEqual(t, metricdata.Metrics{
-				Name:        "otelcol_processor_tail_sampling_count_traces_sampled",
-				Description: "Count of traces that were sampled or not per sampling policy [Development]",
-				Unit:        "{traces}",
-				Data: metricdata.Sum[int64]{
-					IsMonotonic: true,
-					Temporality: metricdata.CumulativeTemporality,
-					DataPoints: []metricdata.DataPoint[int64]{
-						{
-							Attributes: attribute.NewSet(
-								attribute.String("policy", "always"),
-								attribute.String("sampled", "true"),
-								attribute.String("decision", "sampled"),
-							),
-							Value: 1,
-						},
-					},
-				},
-			}, s.getMetric("otelcol_processor_tail_sampling_count_traces_sampled", md), metricdatatest.IgnoreTimestamp())
-		})
-	}
-}
-
 func TestMetricsWithComponentID(t *testing.T) {
 	// prepare
 	s := setupTestTelemetry()
 	controller := newTestTSPController()
 
 	cfg := Config{
-		SamplingStrategy: samplingStrategyTraceComplete,
-		DecisionWait:     1,
-		NumTraces:        100,
+		DecisionWait: 1,
+		NumTraces:    100,
 		PolicyCfgs: []PolicyCfg{
 			{
 				sharedPolicyCfg: sharedPolicyCfg{
@@ -691,10 +603,9 @@ func TestMetricsCountSampled(t *testing.T) {
 			controller := newTestTSPController()
 
 			cfg := Config{
-				SamplingStrategy: samplingStrategyTraceComplete,
-				DecisionWait:     1,
-				NumTraces:        100,
-				PolicyCfgs:       tt.policyCfgs,
+				DecisionWait: 1,
+				NumTraces:    100,
+				PolicyCfgs:   tt.policyCfgs,
 				Options: []Option{
 					withTestController(controller),
 				},
@@ -739,9 +650,8 @@ func TestProcessorTailSamplingSamplingTraceRemovalAge(t *testing.T) {
 	controller := newTestTSPController()
 
 	cfg := Config{
-		SamplingStrategy: samplingStrategyTraceComplete,
-		DecisionWait:     1,
-		NumTraces:        2,
+		DecisionWait: 1,
+		NumTraces:    2,
 		PolicyCfgs: []PolicyCfg{
 			{
 				sharedPolicyCfg: sharedPolicyCfg{
@@ -799,9 +709,8 @@ func TestProcessorTailSamplingSamplingLateSpanAge(t *testing.T) {
 	controller := newTestTSPController()
 
 	cfg := Config{
-		SamplingStrategy: samplingStrategyTraceComplete,
-		DecisionWait:     1,
-		NumTraces:        100,
+		DecisionWait: 1,
+		NumTraces:    100,
 		PolicyCfgs: []PolicyCfg{
 			{
 				sharedPolicyCfg: sharedPolicyCfg{
@@ -884,9 +793,8 @@ func TestProcessorTailSamplingSamplingTraceDroppedTooEarly(t *testing.T) {
 	controller := newTestTSPController()
 
 	cfg := Config{
-		SamplingStrategy: samplingStrategyTraceComplete,
-		DecisionWait:     1,
-		NumTraces:        2,
+		DecisionWait: 1,
+		NumTraces:    2,
 		PolicyCfgs: []PolicyCfg{
 			{
 				sharedPolicyCfg: sharedPolicyCfg{
@@ -950,9 +858,8 @@ func TestProcessorTailSamplingSamplingPolicyEvaluationError(t *testing.T) {
 	controller := newTestTSPController()
 
 	cfg := Config{
-		SamplingStrategy: samplingStrategyTraceComplete,
-		DecisionWait:     1,
-		NumTraces:        100,
+		DecisionWait: 1,
+		NumTraces:    100,
 		PolicyCfgs: []PolicyCfg{
 			{
 				sharedPolicyCfg: sharedPolicyCfg{
@@ -1024,9 +931,8 @@ func TestProcessorTailSamplingEarlyReleasesFromCacheDecision(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg := Config{
-		SamplingStrategy: samplingStrategyTraceComplete,
-		DecisionWait:     1,
-		NumTraces:        100,
+		DecisionWait: 1,
+		NumTraces:    100,
 		PolicyCfgs: []PolicyCfg{
 			{
 				sharedPolicyCfg: sharedPolicyCfg{

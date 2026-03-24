@@ -45,10 +45,6 @@ properties:
     $ref: go.opentelemetry.io/collector/config/configopaque.string
   query_sample_collection:
     $ref: query_sample_collection
-  resource_attributes_override:
-    type: object
-    additionalProperties:
-      type: string
   statement_events:
     $ref: statement_events_config
   tls:

@@ -45,12 +45,3 @@ func (c *Drop) Evaluate(ctx context.Context, traceID pcommon.TraceID, trace *sam
 	}
 	return samplingpolicy.Dropped, nil
 }
-
-func (c *Drop) IsStateful() bool {
-	for _, sub := range c.subpolicies {
-		if sub.IsStateful() {
-			return true
-		}
-	}
-	return false
-}

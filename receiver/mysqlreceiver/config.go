@@ -34,7 +34,6 @@ type Config struct {
 	StatementEvents                StatementEventsConfig         `mapstructure:"statement_events"`
 	TopQueryCollection             TopQueryCollection            `mapstructure:"top_query_collection"`
 	QuerySampleCollection          QuerySampleCollection         `mapstructure:"query_sample_collection"`
-	ResourceOverrides              map[string]string             `mapstructure:"resource_attributes_override,omitempty"`
 }
 
 type TopQueryCollection struct {
@@ -47,7 +46,6 @@ type TopQueryCollection struct {
 
 	_ struct{}
 }
-
 type QuerySampleCollection struct {
 	MaxRowsPerQuery uint64 `mapstructure:"max_rows_per_query"`
 

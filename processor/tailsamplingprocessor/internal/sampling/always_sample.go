@@ -31,7 +31,3 @@ func (as *alwaysSample) Evaluate(context.Context, pcommon.TraceID, *samplingpoli
 	as.logger.Debug("Evaluating spans in always-sample filter")
 	return samplingpolicy.Sampled, nil
 }
-
-func (*alwaysSample) IsStateful() bool {
-	return false
-}

@@ -101,7 +101,3 @@ func (naf *numericAttributeFilter) Evaluate(_ context.Context, _ pcommon.TraceID
 		},
 	), nil
 }
-
-func (*numericAttributeFilter) IsStateful() bool {
-	return false
-}

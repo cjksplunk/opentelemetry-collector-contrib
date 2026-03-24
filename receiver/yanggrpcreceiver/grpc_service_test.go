@@ -28,14 +28,19 @@ func TestGrpcService_ProcessTelemetryData(t *testing.T) {
 	mockConsumer := &consumertest.MetricsSink{}
 	settings := createTestSettings()
 
-	ctr := createMetricsReceiver(t.Context(), settings, config, mockConsumer)
+	ctr, err := createMetricsReceiver(t.Context(), settings, config, mockConsumer)
+	if err != nil {
+		t.Fatalf("Failed to create receiver: %v", err)
+	}
 
 	// Create gRPC service with YANG parser
 	yangParser := internal.NewYANGParser()
 	yangParser.LoadBuiltinModules()
+	rfcYangParser := internal.NewRFC6020Parser()
 	service := &grpcService{
-		receiver:   ctr.(*yangReceiver),
-		yangParser: yangParser,
+		receiver:      ctr.(*yangReceiver),
+		yangParser:    yangParser,
+		rfcYangParser: rfcYangParser,
 	}
 
 	// Create test telemetry data
@@ -194,7 +199,10 @@ func TestKvGPBDataParsing(t *testing.T) {
 				},
 			}
 
-			ctr := createMetricsReceiver(t.Context(), settings, config, mockConsumer)
+			ctr, err := createMetricsReceiver(t.Context(), settings, config, mockConsumer)
+			if err != nil {
+				t.Fatalf("Failed to create receiver: %v", err)
+			}
 
 			yangParser := internal.NewYANGParser()
 			yangParser.LoadBuiltinModules()

@@ -18,7 +18,7 @@ type eventDbServerQuerySample struct {
 	config EventConfig         // event config provided by user.
 }
 
-func (e *eventDbServerQuerySample) recordEvent(ctx context.Context, timestamp pcommon.Timestamp, dbSystemNameAttributeValue string, mysqlThreadsThreadIDAttributeValue int64, userNameAttributeValue string, dbNamespaceAttributeValue string, mysqlThreadsProcesslistCommandAttributeValue string, mysqlThreadsProcesslistStateAttributeValue string, dbQueryTextAttributeValue string, mysqlEventsStatementsCurrentDigestAttributeValue string, mysqlEventIDAttributeValue int64, mysqlWaitTypeAttributeValue string, mysqlSessionStatusAttributeValue string, mysqlSessionIDAttributeValue int64, mysqlEventsWaitsCurrentTimerWaitAttributeValue float64, clientAddressAttributeValue string, clientPortAttributeValue int64, networkPeerAddressAttributeValue string, networkPeerPortAttributeValue int64) {
+func (e *eventDbServerQuerySample) recordEvent(ctx context.Context, timestamp pcommon.Timestamp, dbSystemNameAttributeValue string, mysqlThreadsThreadIDAttributeValue int64, userNameAttributeValue string, dbNamespaceAttributeValue string, mysqlThreadsProcesslistCommandAttributeValue string, mysqlThreadsProcesslistStateAttributeValue string, dbQueryTextAttributeValue string, mysqlEventsStatementsCurrentDigestAttributeValue string, mysqlEventIDAttributeValue int64, mysqlWaitTypeAttributeValue string, mysqlEventsWaitsCurrentTimerWaitAttributeValue float64, clientAddressAttributeValue string, clientPortAttributeValue int64, networkPeerAddressAttributeValue string, networkPeerPortAttributeValue int64) {
 	if !e.config.Enabled {
 		return
 	}
@@ -40,8 +40,6 @@ func (e *eventDbServerQuerySample) recordEvent(ctx context.Context, timestamp pc
 	dp.Attributes().PutStr("mysql.events_statements_current.digest", mysqlEventsStatementsCurrentDigestAttributeValue)
 	dp.Attributes().PutInt("mysql.event_id", mysqlEventIDAttributeValue)
 	dp.Attributes().PutStr("mysql.wait_type", mysqlWaitTypeAttributeValue)
-	dp.Attributes().PutStr("mysql.session.status", mysqlSessionStatusAttributeValue)
-	dp.Attributes().PutInt("mysql.session.id", mysqlSessionIDAttributeValue)
 	dp.Attributes().PutDouble("mysql.events_waits_current.timer_wait", mysqlEventsWaitsCurrentTimerWaitAttributeValue)
 	dp.Attributes().PutStr("client.address", clientAddressAttributeValue)
 	dp.Attributes().PutInt("client.port", clientPortAttributeValue)
@@ -141,24 +139,6 @@ func NewLogsBuilder(lbc LogsBuilderConfig, settings receiver.Settings) *LogsBuil
 	if lbc.ResourceAttributes.MysqlInstanceEndpoint.EventsExclude != nil {
 		lb.resourceAttributeExcludeFilter["mysql.instance.endpoint"] = filter.CreateFilter(lbc.ResourceAttributes.MysqlInstanceEndpoint.EventsExclude)
 	}
-	if lbc.ResourceAttributes.ServiceInstanceID.EventsInclude != nil {
-		lb.resourceAttributeIncludeFilter["service.instance.id"] = filter.CreateFilter(lbc.ResourceAttributes.ServiceInstanceID.EventsInclude)
-	}
-	if lbc.ResourceAttributes.ServiceInstanceID.EventsExclude != nil {
-		lb.resourceAttributeExcludeFilter["service.instance.id"] = filter.CreateFilter(lbc.ResourceAttributes.ServiceInstanceID.EventsExclude)
-	}
-	if lbc.ResourceAttributes.ServiceName.EventsInclude != nil {
-		lb.resourceAttributeIncludeFilter["service.name"] = filter.CreateFilter(lbc.ResourceAttributes.ServiceName.EventsInclude)
-	}
-	if lbc.ResourceAttributes.ServiceName.EventsExclude != nil {
-		lb.resourceAttributeExcludeFilter["service.name"] = filter.CreateFilter(lbc.ResourceAttributes.ServiceName.EventsExclude)
-	}
-	if lbc.ResourceAttributes.ServiceNamespace.EventsInclude != nil {
-		lb.resourceAttributeIncludeFilter["service.namespace"] = filter.CreateFilter(lbc.ResourceAttributes.ServiceNamespace.EventsInclude)
-	}
-	if lbc.ResourceAttributes.ServiceNamespace.EventsExclude != nil {
-		lb.resourceAttributeExcludeFilter["service.namespace"] = filter.CreateFilter(lbc.ResourceAttributes.ServiceNamespace.EventsExclude)
-	}
 
 	return lb
 }
@@ -241,8 +221,8 @@ func (lb *LogsBuilder) Emit(options ...ResourceLogsOption) plog.Logs {
 }
 
 // RecordDbServerQuerySampleEvent adds a log record of db.server.query_sample event.
-func (lb *LogsBuilder) RecordDbServerQuerySampleEvent(ctx context.Context, timestamp pcommon.Timestamp, dbSystemNameAttributeValue AttributeDbSystemName, mysqlThreadsThreadIDAttributeValue int64, userNameAttributeValue string, dbNamespaceAttributeValue string, mysqlThreadsProcesslistCommandAttributeValue string, mysqlThreadsProcesslistStateAttributeValue string, dbQueryTextAttributeValue string, mysqlEventsStatementsCurrentDigestAttributeValue string, mysqlEventIDAttributeValue int64, mysqlWaitTypeAttributeValue string, mysqlSessionStatusAttributeValue string, mysqlSessionIDAttributeValue int64, mysqlEventsWaitsCurrentTimerWaitAttributeValue float64, clientAddressAttributeValue string, clientPortAttributeValue int64, networkPeerAddressAttributeValue string, networkPeerPortAttributeValue int64) {
-	lb.eventDbServerQuerySample.recordEvent(ctx, timestamp, dbSystemNameAttributeValue.String(), mysqlThreadsThreadIDAttributeValue, userNameAttributeValue, dbNamespaceAttributeValue, mysqlThreadsProcesslistCommandAttributeValue, mysqlThreadsProcesslistStateAttributeValue, dbQueryTextAttributeValue, mysqlEventsStatementsCurrentDigestAttributeValue, mysqlEventIDAttributeValue, mysqlWaitTypeAttributeValue, mysqlSessionStatusAttributeValue, mysqlSessionIDAttributeValue, mysqlEventsWaitsCurrentTimerWaitAttributeValue, clientAddressAttributeValue, clientPortAttributeValue, networkPeerAddressAttributeValue, networkPeerPortAttributeValue)
+func (lb *LogsBuilder) RecordDbServerQuerySampleEvent(ctx context.Context, timestamp pcommon.Timestamp, dbSystemNameAttributeValue AttributeDbSystemName, mysqlThreadsThreadIDAttributeValue int64, userNameAttributeValue string, dbNamespaceAttributeValue string, mysqlThreadsProcesslistCommandAttributeValue string, mysqlThreadsProcesslistStateAttributeValue string, dbQueryTextAttributeValue string, mysqlEventsStatementsCurrentDigestAttributeValue string, mysqlEventIDAttributeValue int64, mysqlWaitTypeAttributeValue string, mysqlEventsWaitsCurrentTimerWaitAttributeValue float64, clientAddressAttributeValue string, clientPortAttributeValue int64, networkPeerAddressAttributeValue string, networkPeerPortAttributeValue int64) {
+	lb.eventDbServerQuerySample.recordEvent(ctx, timestamp, dbSystemNameAttributeValue.String(), mysqlThreadsThreadIDAttributeValue, userNameAttributeValue, dbNamespaceAttributeValue, mysqlThreadsProcesslistCommandAttributeValue, mysqlThreadsProcesslistStateAttributeValue, dbQueryTextAttributeValue, mysqlEventsStatementsCurrentDigestAttributeValue, mysqlEventIDAttributeValue, mysqlWaitTypeAttributeValue, mysqlEventsWaitsCurrentTimerWaitAttributeValue, clientAddressAttributeValue, clientPortAttributeValue, networkPeerAddressAttributeValue, networkPeerPortAttributeValue)
 }
 
 // RecordDbServerTopQueryEvent adds a log record of db.server.top_query event.

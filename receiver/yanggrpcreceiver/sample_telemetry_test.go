@@ -6,7 +6,6 @@ package yanggrpcreceiver
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -60,9 +59,12 @@ func TestSampleTelemetryData(t *testing.T) {
 	}
 
 	ctx := t.Context()
-	rcvr := createMetricsReceiver(ctx, settings, config, consumer)
+	rcvr, err := createMetricsReceiver(ctx, settings, config, consumer)
+	if err != nil {
+		t.Fatalf("Failed to create receiver: %v", err)
+	}
 
-	err := rcvr.Start(ctx, componenttest.NewNopHost())
+	err = rcvr.Start(ctx, componenttest.NewNopHost())
 	if err != nil {
 		t.Fatalf("Failed to start receiver: %v", err)
 	}
@@ -277,7 +279,7 @@ func sendInterfaceTelemetryData(endpoint, nodeID, subscription, encodingPath str
 	}
 
 	_, err = stream.Recv()
-	if !errors.Is(err, io.EOF) {
+	if err != nil && err.Error() != "EOF" {
 		return fmt.Errorf("unexpected error receiving response: %w", err)
 	}
 

@@ -7,17 +7,15 @@ import (
 	"time"
 
 	"go.opentelemetry.io/collector/component/componentstatus"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
 // statusEvent contains a status and timestamp, and can contain an error. Note:
 // this is duplicated from core because we need to be able to "rewrite" the
 // timestamps of some events during aggregation.
 type statusEvent struct {
-	status     componentstatus.Status
-	err        error
-	timestamp  time.Time
-	attributes pcommon.Map
+	status    componentstatus.Status
+	err       error
+	timestamp time.Time
 }
 
 var _ Event = (*statusEvent)(nil)
@@ -35,10 +33,6 @@ func (ev *statusEvent) Err() error {
 // Timestamp returns the timestamp associated with the StatusEvent
 func (ev *statusEvent) Timestamp() time.Time {
 	return ev.timestamp
-}
-
-func (ev *statusEvent) Attributes() pcommon.Map {
-	return ev.attributes
 }
 
 type ErrorPriority int
@@ -155,9 +149,8 @@ func newAggregationFunc(priority ErrorPriority) aggregationFunc {
 
 		// the aggregate status requires a synthetic event
 		return &statusEvent{
-			status:     status,
-			timestamp:  lastEvent.Timestamp(),
-			attributes: pcommon.NewMap(),
+			status:    status,
+			timestamp: lastEvent.Timestamp(),
 		}
 	}
 }

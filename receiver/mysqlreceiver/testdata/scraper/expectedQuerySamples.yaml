@@ -1,18 +1,5 @@
 resourceLogs:
-  - resource:
-      attributes:
-        - key: mysql.instance.endpoint
-          value:
-            stringValue: localhost:3306
-        - key: service.instance.id
-          value:
-            stringValue: localhost:3306
-        - key: service.name
-          value:
-            stringValue: mysql
-        - key: service.namespace
-          value:
-            stringValue: mynamespace
+  - resource: {}
     scopeLogs:
       - logRecords:
           - attributes:
@@ -46,12 +33,6 @@ resourceLogs:
               - key: mysql.wait_type
                 value:
                   stringValue: CPU
-              - key: mysql.session.status
-                value:
-                  stringValue: 'waiting'
-              - key: mysql.session.id
-                value:
-                  intValue: "-54321"
               - key: mysql.events_waits_current.timer_wait
                 value:
                   doubleValue: 1.2851652e-05

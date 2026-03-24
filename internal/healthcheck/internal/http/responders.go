@@ -51,13 +51,12 @@ func respondWithJSON(code int, content any, w http.ResponseWriter) error {
 	return wErr
 }
 
-func defaultResponder(startTimestamp *time.Time, includeAttributes bool) responderFunc {
+func defaultResponder(startTimestamp *time.Time) responderFunc {
 	return func(st *status.AggregateStatus, w http.ResponseWriter) error {
 		code := responseCodes[st.Status()]
 		sst := toSerializableStatus(st, &serializationOptions{
-			includeStartTime:  true,
-			startTimestamp:    startTimestamp,
-			includeAttributes: includeAttributes,
+			includeStartTime: true,
+			startTimestamp:   startTimestamp,
 		})
 		return respondWithJSON(code, sst, w)
 	}
@@ -66,7 +65,6 @@ func defaultResponder(startTimestamp *time.Time, includeAttributes bool) respond
 func componentHealthResponder(
 	startTimestamp *time.Time,
 	config *common.ComponentHealthConfig,
-	includeAttributes bool,
 ) responderFunc {
 	healthyFunc := func(now *time.Time) func(status.Event) bool {
 		return func(ev status.Event) bool {
@@ -86,10 +84,9 @@ func componentHealthResponder(
 		sst := toSerializableStatus(
 			st,
 			&serializationOptions{
-				includeStartTime:  true,
-				startTimestamp:    startTimestamp,
-				healthyFunc:       healthyFunc(&now),
-				includeAttributes: includeAttributes,
+				includeStartTime: true,
+				startTimestamp:   startTimestamp,
+				healthyFunc:      healthyFunc(&now),
 			},
 		)
 

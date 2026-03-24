@@ -38,7 +38,3 @@ func (tf *traceFlags) Evaluate(_ context.Context, _ pcommon.TraceID, td *samplin
 		return (byte(span.Flags()) & byte(trace.FlagsSampled)) != 0
 	}), nil
 }
-
-func (*traceFlags) IsStateful() bool {
-	return false
-}

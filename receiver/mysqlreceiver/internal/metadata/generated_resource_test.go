@@ -14,9 +14,6 @@ func TestResourceBuilder(t *testing.T) {
 			cfg := loadResourceAttributesConfig(t, tt)
 			rb := NewResourceBuilder(cfg)
 			rb.SetMysqlInstanceEndpoint("mysql.instance.endpoint-val")
-			rb.SetServiceInstanceID("service.instance.id-val")
-			rb.SetServiceName("service.name-val")
-			rb.SetServiceNamespace("service.namespace-val")
 
 			res := rb.Emit()
 			assert.Equal(t, 0, rb.Emit().Attributes().Len()) // Second call should return empty Resource
@@ -25,7 +22,7 @@ func TestResourceBuilder(t *testing.T) {
 			case "default":
 				assert.Equal(t, 1, res.Attributes().Len())
 			case "all_set":
-				assert.Equal(t, 4, res.Attributes().Len())
+				assert.Equal(t, 1, res.Attributes().Len())
 			case "none_set":
 				assert.Equal(t, 0, res.Attributes().Len())
 				return
@@ -36,21 +33,6 @@ func TestResourceBuilder(t *testing.T) {
 			assert.True(t, ok)
 			if ok {
 				assert.Equal(t, "mysql.instance.endpoint-val", mysqlInstanceEndpointAttrVal.Str())
-			}
-			serviceInstanceIDAttrVal, ok := res.Attributes().Get("service.instance.id")
-			assert.Equal(t, tt == "all_set", ok)
-			if ok {
-				assert.Equal(t, "service.instance.id-val", serviceInstanceIDAttrVal.Str())
-			}
-			serviceNameAttrVal, ok := res.Attributes().Get("service.name")
-			assert.Equal(t, tt == "all_set", ok)
-			if ok {
-				assert.Equal(t, "service.name-val", serviceNameAttrVal.Str())
-			}
-			serviceNamespaceAttrVal, ok := res.Attributes().Get("service.namespace")
-			assert.Equal(t, tt == "all_set", ok)
-			if ok {
-				assert.Equal(t, "service.namespace-val", serviceNamespaceAttrVal.Str())
 			}
 		})
 	}

@@ -47,7 +47,3 @@ func (n *not) Evaluate(ctx context.Context, traceID pcommon.TraceID, trace *samp
 		return decision, nil
 	}
 }
-
-func (n *not) IsStateful() bool {
-	return n.subPolicyEvaluator.IsStateful()
-}
