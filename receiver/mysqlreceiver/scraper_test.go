@@ -5,7 +5,6 @@ package mysqlreceiver
 
 import (
 	"bufio"
-	"context"
 	"database/sql"
 	"os"
 	"path/filepath"
@@ -223,10 +222,10 @@ func TestContextWithTraceparent(t *testing.T) {
 		assert.False(t, spanCtx.IsValid())
 	})
 
-	t.Run("collector span is stripped before traceparent extraction", func(t *testing.T) {
-		// Simulate a context carrying a live collector-internal span. The span
-		// context on the returned context must come from the traceparent, not
-		// from the collector span.
+	t.Run("traceparent overrides collector span when both are present", func(t *testing.T) {
+		// Simulate a context carrying a live collector-internal span (the normal scrape context).
+		// When a traceparent is present, the returned context must carry the application's
+		// TraceID/SpanID from the traceparent, not the collector's span IDs.
 		collectorTraceID, _ := trace.TraceIDFromHex("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 		collectorSpanID, _ := trace.SpanIDFromHex("bbbbbbbbbbbbbbbb")
 		collectorSpanCtx := trace.NewSpanContext(trace.SpanContextConfig{
@@ -237,13 +236,7 @@ func TestContextWithTraceparent(t *testing.T) {
 		})
 		ctxWithCollectorSpan := trace.ContextWithSpanContext(t.Context(), collectorSpanCtx)
 
-		// Strip the collector span (as scrapeQuerySamples does) then extract.
-		// context.Background() is intentional here: SpanFromContext(Background()) returns a
-		// no-op span, which is what we use to strip the collector span from ctxWithCollectorSpan.
-		// t.Context() would also work but is semantically misleading in this context.
-		noopSpan := trace.SpanFromContext(context.Background()) //nolint:usetesting
-		baseCtx := trace.ContextWithSpan(ctxWithCollectorSpan, noopSpan)
-		resultCtx, err := contextWithTraceparent(baseCtx, "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+		resultCtx, err := contextWithTraceparent(ctxWithCollectorSpan, "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
 		require.NoError(t, err)
 
 		spanCtx := trace.SpanContextFromContext(resultCtx)

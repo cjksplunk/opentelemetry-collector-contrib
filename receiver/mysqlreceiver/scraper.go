@@ -724,12 +724,6 @@ func (m *mySQLScraper) scrapeQuerySamples(ctx context.Context, now pcommon.Times
 		return
 	}
 
-	// Strip the collector's own scrape span from ctx so it is never accidentally
-	// stamped onto query-sample log records, while preserving all other context
-	// values (deadlines, cancellation, baggage, etc.). This is invariant across
-	// all samples in this batch, so compute it once outside the loop.
-	baseCtx := trace.ContextWithSpan(ctx, trace.SpanFromContext(context.Background()))
-
 	for i := range samples {
 		sample := &samples[i]
 		clientAddress := ""
@@ -755,10 +749,13 @@ func (m *mySQLScraper) scrapeQuerySamples(ctx context.Context, now pcommon.Times
 			m.logger.Error("Failed to obfuscate query", zap.Error(obfErr))
 		}
 
-		recordCtx := baseCtx
+		// Use the scrape context by default (preserves the collector's scrape span
+		// on log records when no application traceparent is present). If the sample
+		// carries a W3C traceparent, override with the application's trace context.
+		recordCtx := ctx
 		if sample.traceparent != "" {
 			var tpErr error
-			recordCtx, tpErr = contextWithTraceparent(baseCtx, sample.traceparent)
+			recordCtx, tpErr = contextWithTraceparent(ctx, sample.traceparent)
 			if tpErr != nil {
 				m.logger.Warn("Invalid traceparent; omitting trace context", zap.String("presented-traceparent", sample.traceparent), zap.Error(tpErr))
 			}
