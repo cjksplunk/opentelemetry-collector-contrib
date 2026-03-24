@@ -1,0 +1,13 @@
+display_name: Static Observer Extension
+type: static_observer
+
+status:
+  class: extension
+  stability:
+    development: [extension]
+  distributions: []
+  codeowners:
+    active: [cjksplunk]
+
+tests:
+  config:
