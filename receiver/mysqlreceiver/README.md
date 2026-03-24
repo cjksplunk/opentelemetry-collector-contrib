@@ -97,12 +97,12 @@ Details about the metrics produced by this receiver can be found in [metadata.ya
 ## Logs
 Details about the logs produced by this receiver can be found in [documentation.md](./documentation.md)
 
-**Trace propagation:** Query sample log records always carry a TraceID and SpanID.
-By default, these are the collector's own internal scrape span IDs. If a MySQL session
-sets the `@traceparent` user variable (W3C TraceContext format, lowercase name), the
-collector extracts the TraceID and SpanID from that value instead, stamping the
-application's trace context onto the corresponding log record. This allows application
-transactions to be correlated with query samples collected by this receiver.
+**Trace propagation:** Query sample log records carry a TraceID and SpanID only when
+a MySQL session sets the `@traceparent` user variable (W3C TraceContext format,
+lowercase name). The collector extracts the TraceID and SpanID from that value and
+stamps the application's trace context onto the corresponding log record. Log records
+without a `@traceparent` will have empty TraceID and SpanID fields. This allows
+application transactions to be correlated with query samples collected by this receiver.
 
 > **Note:** `VARIABLE_NAME` in `performance_schema.user_variables_by_thread`
 > stores the variable name in the case it was originally set. The collector

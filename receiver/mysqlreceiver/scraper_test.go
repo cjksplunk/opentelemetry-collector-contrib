@@ -197,52 +197,40 @@ func TestScrapeBufferPoolPagesMiscOutOfBounds(t *testing.T) {
 
 func TestContextWithTraceparent(t *testing.T) {
 	t.Run("valid traceparent sets span context", func(t *testing.T) {
-		ctx, err := contextWithTraceparent(t.Context(), "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+		ctx, err := contextWithTraceparent("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
 		require.NoError(t, err)
-		assert.NotEqual(t, ctx, t.Context())
 		spanCtx := trace.SpanContextFromContext(ctx)
 		require.True(t, spanCtx.IsValid())
 		assert.Equal(t, "4bf92f3577b34da6a3ce929d0e0e4736", spanCtx.TraceID().String())
 		assert.Equal(t, "00f067aa0ba902b7", spanCtx.SpanID().String())
 	})
 
-	t.Run("empty traceparent leaves context unchanged", func(t *testing.T) {
-		ctx, err := contextWithTraceparent(t.Context(), "")
-		require.NoError(t, err)
-		assert.Equal(t, ctx, t.Context())
-		spanCtx := trace.SpanContextFromContext(ctx)
-		assert.False(t, spanCtx.IsValid())
-	})
-
-	t.Run("invalid traceparent does not set span context", func(t *testing.T) {
-		ctx, err := contextWithTraceparent(t.Context(), "trace-id")
+	t.Run("invalid traceparent returns error and empty span context", func(t *testing.T) {
+		ctx, err := contextWithTraceparent("trace-id")
 		require.Error(t, err)
-		assert.Equal(t, ctx, t.Context())
 		spanCtx := trace.SpanContextFromContext(ctx)
 		assert.False(t, spanCtx.IsValid())
 	})
 
-	t.Run("traceparent overrides collector span when both are present", func(t *testing.T) {
-		// Simulate a context carrying a live collector-internal span (the normal scrape context).
-		// When a traceparent is present, the returned context must carry the application's
-		// TraceID/SpanID from the traceparent, not the collector's span IDs.
+	t.Run("result is rooted at context.Background, not a caller context", func(t *testing.T) {
+		// contextWithTraceparent always uses context.Background() as its base,
+		// so any span already present in a caller's context must not bleed through.
 		collectorTraceID, _ := trace.TraceIDFromHex("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 		collectorSpanID, _ := trace.SpanIDFromHex("bbbbbbbbbbbbbbbb")
 		collectorSpanCtx := trace.NewSpanContext(trace.SpanContextConfig{
 			TraceID:    collectorTraceID,
 			SpanID:     collectorSpanID,
 			TraceFlags: trace.FlagsSampled,
-			Remote:     false,
 		})
-		ctxWithCollectorSpan := trace.ContextWithSpanContext(t.Context(), collectorSpanCtx)
+		_ = trace.ContextWithSpanContext(t.Context(), collectorSpanCtx) // not passed in
 
-		resultCtx, err := contextWithTraceparent(ctxWithCollectorSpan, "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+		ctx, err := contextWithTraceparent("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
 		require.NoError(t, err)
 
-		spanCtx := trace.SpanContextFromContext(resultCtx)
+		spanCtx := trace.SpanContextFromContext(ctx)
 		require.True(t, spanCtx.IsValid())
-		assert.Equal(t, "4bf92f3577b34da6a3ce929d0e0e4736", spanCtx.TraceID().String(), "TraceID must come from traceparent, not collector span")
-		assert.Equal(t, "00f067aa0ba902b7", spanCtx.SpanID().String(), "SpanID must come from traceparent, not collector span")
+		assert.Equal(t, "4bf92f3577b34da6a3ce929d0e0e4736", spanCtx.TraceID().String())
+		assert.Equal(t, "00f067aa0ba902b7", spanCtx.SpanID().String())
 	})
 }
 

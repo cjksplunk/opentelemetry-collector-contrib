@@ -716,7 +716,7 @@ func (m *mySQLScraper) scrapeTopQueries(ctx context.Context, now pcommon.Timesta
 	}
 }
 
-func (m *mySQLScraper) scrapeQuerySamples(ctx context.Context, now pcommon.Timestamp, errs *scrapererror.ScrapeErrors) {
+func (m *mySQLScraper) scrapeQuerySamples(_ context.Context, now pcommon.Timestamp, errs *scrapererror.ScrapeErrors) {
 	samples, err := m.sqlclient.getQuerySamples(m.config.QuerySampleCollection.MaxRowsPerQuery)
 	if err != nil {
 		m.logger.Error("Failed to fetch query samples", zap.Error(err))
@@ -749,15 +749,15 @@ func (m *mySQLScraper) scrapeQuerySamples(ctx context.Context, now pcommon.Times
 			m.logger.Error("Failed to obfuscate query", zap.Error(obfErr))
 		}
 
-		// Use the scrape context by default (preserves the collector's scrape span
-		// on log records when no application traceparent is present). If the sample
-		// carries a W3C traceparent, override with the application's trace context.
-		recordCtx := ctx
+		// Use context.Background() as the default so that log records carry empty
+		// trace/span IDs when no application traceparent is present. If the sample
+		// carries a W3C traceparent, extract the application's trace context from it.
+		recordCtx := context.Background()
 		if sample.traceparent != "" {
 			var tpErr error
-			recordCtx, tpErr = contextWithTraceparent(ctx, sample.traceparent)
+			recordCtx, tpErr = contextWithTraceparent(sample.traceparent)
 			if tpErr != nil {
-				m.logger.Warn("Invalid traceparent; omitting trace context", zap.String("presented-traceparent", sample.traceparent), zap.Error(tpErr))
+				m.logger.Warn("Invalid traceparent; omitting trace context", zap.String("presented-traceparent", sample.traceparent), zap.String("db.query.digest", sample.digest), zap.Error(tpErr))
 			}
 		}
 
@@ -786,19 +786,16 @@ func (m *mySQLScraper) scrapeQuerySamples(ctx context.Context, now pcommon.Times
 }
 
 // contextWithTraceparent extracts a W3C TraceContext traceparent from the given
-// string and returns a new context carrying the resulting span context.
-// An empty traceparent is treated as a no-op and returns the original context.
-func contextWithTraceparent(ctx context.Context, traceparent string) (context.Context, error) {
-	if traceparent == "" {
-		return ctx, nil
-	}
-	newCtx := propagation.TraceContext{}.Extract(ctx, propagation.MapCarrier{
+// string and returns a new context.Background()-based context carrying the
+// resulting span context. Returns an error if the traceparent is invalid.
+func contextWithTraceparent(traceparent string) (context.Context, error) {
+	newCtx := propagation.TraceContext{}.Extract(context.Background(), propagation.MapCarrier{
 		"traceparent": traceparent,
 	})
 	if trace.SpanContextFromContext(newCtx).IsValid() {
 		return newCtx, nil
 	}
-	return ctx, fmt.Errorf("invalid traceparent: %s", traceparent)
+	return context.Background(), fmt.Errorf("invalid traceparent: %s", traceparent)
 }
 
 func addPartialIfError(errors *scrapererror.ScrapeErrors, err error) {
