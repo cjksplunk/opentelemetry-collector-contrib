@@ -11,7 +11,7 @@ component:
 note:
   Setting the value of `traceparent`, if set in a query, to the TraceID and SpanID samples log event. This will allow users to correlate the query sample with the trace of the request that triggered it, providing better visibility into the performance of their MySQL queries.
 # Mandatory: One or more tracking issues related to the change. You can use the PR number here if no issue exists.
-issues: [135349]
+issues: [46631]
 
 # (Optional) One or more lines of additional information to render under the primary note.
 # These lines will be padded with 2 spaces and then inserted directly into the document.
