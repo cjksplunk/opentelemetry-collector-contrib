@@ -82,12 +82,14 @@ processor instance per receiver.
    (`ID: "static-0"`, `type: "static"`, empty `Target`).
 3. For each subreceiver template whose `rule` matches `type == "static"`, the
    `receiver_creator` starts one subreceiver instance, wrapping its consumer with an
-   `enhancingConsumer` that stamps the configured `resource_attributes` onto all telemetry.
+   `enhancingConsumer` that adds the configured `resource_attributes` onto all telemetry
+   (only for keys not already set by the subreceiver).
 4. `resource_attributes` values are plain strings — no backtick expressions needed.
 
 ## Behavior Notes
 
 - `resource_attributes` are non-destructive: if the subreceiver itself already sets an attribute
-  with the same key, the receiver's value wins.
+  with the same key, the subreceiver's value takes precedence and the `resource_attributes` value
+  is not applied.
 - Since `Target` is empty, each subreceiver must specify its `endpoint` explicitly in `config:`.
 - Multiple `receiver_creator` instances can each subscribe to the same `static_observer`.

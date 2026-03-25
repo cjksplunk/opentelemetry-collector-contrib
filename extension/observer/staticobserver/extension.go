@@ -9,6 +9,7 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
+	"go.uber.org/zap"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer"
 )
@@ -21,28 +22,21 @@ var (
 // staticObserver fires a single synthetic endpoint of type "static" on ListAndWatch,
 // enabling receiver_creator to start statically-configured subreceivers immediately.
 type staticObserver struct {
+	logger    *zap.Logger
 	mu        sync.Mutex
 	notifiers []observer.Notify
-}
-
-// staticEndpointDetails implements observer.EndpointDetails for the synthetic static endpoint.
-type staticEndpointDetails struct{}
-
-var _ observer.EndpointDetails = (*staticEndpointDetails)(nil)
-
-func (*staticEndpointDetails) Env() observer.EndpointEnv {
-	return observer.EndpointEnv{}
-}
-
-func (*staticEndpointDetails) Type() observer.EndpointType {
-	return observer.StaticType
 }
 
 func (*staticObserver) Start(context.Context, component.Host) error { return nil }
 func (*staticObserver) Shutdown(context.Context) error              { return nil }
 
-// ListAndWatch immediately fires OnAdd with a single synthetic static endpoint,
-// then stores the notifier for future Unsubscribe calls.
+// ListAndWatch registers the notifier, then immediately calls OnAdd with a single synthetic
+// static endpoint. Registering before firing ensures the notifier can be unsubscribed from
+// within an OnAdd callback.
+//
+// Note: unlike the general Observable contract ("endpoint synchronization happens
+// asynchronously"), this implementation calls OnAdd synchronously before returning, as there
+// is no background discovery process.
 func (s *staticObserver) ListAndWatch(notify observer.Notify) {
 	s.mu.Lock()
 	s.notifiers = append(s.notifiers, notify)
@@ -52,7 +46,7 @@ func (s *staticObserver) ListAndWatch(notify observer.Notify) {
 		{
 			ID:      observer.EndpointID("static-0"),
 			Target:  "",
-			Details: &staticEndpointDetails{},
+			Details: &observer.Static{},
 		},
 	})
 }
@@ -68,4 +62,5 @@ func (s *staticObserver) Unsubscribe(notify observer.Notify) {
 			return
 		}
 	}
+	s.logger.Warn("Unsubscribe called for unknown notifier", zap.String("id", string(notify.ID())))
 }

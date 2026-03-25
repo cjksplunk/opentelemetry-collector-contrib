@@ -162,6 +162,12 @@ var kafkaTopicsEndpoint = observer.Endpoint{
 	Details: &observer.KafkaTopic{},
 }
 
+var staticEndpoint = observer.Endpoint{
+	ID:      "static-0",
+	Target:  "",
+	Details: &observer.Static{},
+}
+
 var unsupportedEndpoint = observer.Endpoint{
 	ID:      "endpoint-1",
 	Target:  "localhost:1234",

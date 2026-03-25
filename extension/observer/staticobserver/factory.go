@@ -26,6 +26,6 @@ func createDefaultConfig() component.Config {
 	return &Config{}
 }
 
-func createExtension(_ context.Context, _ extension.Settings, _ component.Config) (extension.Extension, error) {
-	return &staticObserver{}, nil
+func createExtension(_ context.Context, set extension.Settings, _ component.Config) (extension.Extension, error) {
+	return &staticObserver{logger: set.Logger}, nil
 }
