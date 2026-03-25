@@ -33,7 +33,7 @@ func TestListAndWatchFiresStaticEndpoint(t *testing.T) {
 	require.Len(t, n.added, 1)
 	ep := n.added[0]
 	assert.Equal(t, observer.EndpointID("static-0"), ep.ID)
-	assert.Equal(t, StaticEndpointType, ep.Details.Type())
+	assert.Equal(t, observer.StaticType, ep.Details.Type())
 	assert.Empty(t, ep.Details.Env())
 }
 

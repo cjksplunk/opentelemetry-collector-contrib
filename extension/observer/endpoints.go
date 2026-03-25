@@ -37,6 +37,8 @@ const (
 	ContainerType EndpointType = "container"
 	// KafkaTopicType is a kafka topic endpoint
 	KafkaTopicType EndpointType = "kafka.topics"
+	// StaticType is a synthetic static endpoint fired by the static_observer extension.
+	StaticType EndpointType = "static"
 )
 
 var (

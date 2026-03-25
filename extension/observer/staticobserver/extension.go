@@ -13,9 +13,6 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer"
 )
 
-// StaticEndpointType is the endpoint type reported by the static observer.
-const StaticEndpointType observer.EndpointType = "static"
-
 var (
 	_ extension.Extension = (*staticObserver)(nil)
 	_ observer.Observable = (*staticObserver)(nil)
@@ -38,7 +35,7 @@ func (*staticEndpointDetails) Env() observer.EndpointEnv {
 }
 
 func (*staticEndpointDetails) Type() observer.EndpointType {
-	return StaticEndpointType
+	return observer.StaticType
 }
 
 func (*staticObserver) Start(context.Context, component.Host) error { return nil }
