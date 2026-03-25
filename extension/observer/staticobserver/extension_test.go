@@ -40,7 +40,7 @@ func TestListAndWatchFiresStaticEndpoint(t *testing.T) {
 	assert.Equal(t, observer.EndpointID("static-0"), ep.ID)
 	assert.Equal(t, "", ep.Target, "Target must be empty; subreceiver must specify endpoint explicitly")
 	assert.Equal(t, observer.StaticType, ep.Details.Type())
-	assert.Empty(t, ep.Details.Env())
+	assert.Equal(t, observer.EndpointEnv{}, ep.Details.Env())
 	assert.Empty(t, n.removed, "OnRemove must not be called by ListAndWatch")
 	assert.Empty(t, n.changed, "OnChange must not be called by ListAndWatch")
 }
