@@ -17,10 +17,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/receiver/receivertest"
 	"go.opentelemetry.io/collector/scraper/scrapererror"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest/plogtest"
@@ -100,10 +103,6 @@ func TestScrape(t *testing.T) {
 		expectedQuerySample, err := golden.ReadLogs(expectedQuerySampleFile)
 		require.NoError(t, err)
 
-		require.Equal(t, expectedQuerySample.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0).TraceID(),
-			actualQuerySamples.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0).TraceID(), "TraceID values do not match")
-		require.Equal(t, expectedQuerySample.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0).SpanID(),
-			actualQuerySamples.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0).SpanID(), "SpanID values do not match")
 		require.NoError(t, plogtest.CompareLogs(expectedQuerySample, actualQuerySamples,
 			plogtest.IgnoreTimestamp()))
 
@@ -214,7 +213,7 @@ func TestContextWithTraceparent(t *testing.T) {
 
 	t.Run("result is rooted at context.Background, not a caller context", func(t *testing.T) {
 		// contextWithTraceparent always uses context.Background() as its base,
-		// so any span already present in a caller's context must not bleed through.
+		// so a collector scrape span in the caller's context must not bleed through.
 		collectorTraceID, _ := trace.TraceIDFromHex("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 		collectorSpanID, _ := trace.SpanIDFromHex("bbbbbbbbbbbbbbbb")
 		collectorSpanCtx := trace.NewSpanContext(trace.SpanContextConfig{
@@ -222,15 +221,55 @@ func TestContextWithTraceparent(t *testing.T) {
 			SpanID:     collectorSpanID,
 			TraceFlags: trace.FlagsSampled,
 		})
-		_ = trace.ContextWithSpanContext(t.Context(), collectorSpanCtx) // not passed in
+		// Verify that the function ignores any span context present on a hypothetical
+		// caller context by confirming it returns the app trace IDs, not the collector ones.
+		appTraceparent := "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+		_ = collectorSpanCtx // would be on the caller ctx in production; not passed in here
 
-		ctx, err := contextWithTraceparent("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+		ctx, err := contextWithTraceparent(appTraceparent)
 		require.NoError(t, err)
 
 		spanCtx := trace.SpanContextFromContext(ctx)
 		require.True(t, spanCtx.IsValid())
 		assert.Equal(t, "4bf92f3577b34da6a3ce929d0e0e4736", spanCtx.TraceID().String())
 		assert.Equal(t, "00f067aa0ba902b7", spanCtx.SpanID().String())
+		assert.NotEqual(t, collectorTraceID.String(), spanCtx.TraceID().String(), "collector TraceID must not bleed through")
+		assert.NotEqual(t, collectorSpanID.String(), spanCtx.SpanID().String(), "collector SpanID must not bleed through")
+	})
+}
+
+func TestScrapeQuerySamplesTraceparent(t *testing.T) {
+	cfg := createDefaultConfig().(*Config)
+	cfg.Username = "otel"
+	cfg.Password = "otel"
+	cfg.AddrConfig = confignet.AddrConfig{Endpoint: "localhost:3306"}
+	cfg.LogsBuilderConfig.Events.DbServerQuerySample.Enabled = true
+
+	t.Run("empty traceparent produces zero TraceID and SpanID", func(t *testing.T) {
+		scraper := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](100), newTTLCache[string](0, time.Hour*24*365*10))
+		scraper.sqlclient = &mockClient{querySamplesFile: "query_samples_no_traceparent"}
+
+		logs, err := scraper.scrapeQuerySampleFunc(t.Context())
+		require.NoError(t, err)
+		require.Equal(t, 1, logs.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().Len())
+		record := logs.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
+		assert.Equal(t, pcommon.TraceID{}, record.TraceID(), "TraceID must be zero when no traceparent is set")
+		assert.Equal(t, pcommon.SpanID{}, record.SpanID(), "SpanID must be zero when no traceparent is set")
+	})
+
+	t.Run("invalid traceparent logs warning and produces zero TraceID and SpanID", func(t *testing.T) {
+		core, logs := observer.New(zapcore.WarnLevel)
+		scraper := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](100), newTTLCache[string](0, time.Hour*24*365*10))
+		scraper.logger = zap.New(core)
+		scraper.sqlclient = &mockClient{querySamplesFile: "query_samples_invalid_traceparent"}
+
+		result, err := scraper.scrapeQuerySampleFunc(t.Context())
+		require.NoError(t, err)
+		require.Equal(t, 1, logs.FilterMessage("Invalid traceparent; omitting trace context").Len(), "expected one warn log for invalid traceparent")
+		require.Equal(t, 1, result.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().Len())
+		record := result.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
+		assert.Equal(t, pcommon.TraceID{}, record.TraceID(), "TraceID must be zero when traceparent is invalid")
+		assert.Equal(t, pcommon.SpanID{}, record.SpanID(), "SpanID must be zero when traceparent is invalid")
 	})
 }
 

@@ -104,10 +104,11 @@ stamps the application's trace context onto the corresponding log record. Log re
 without a `@traceparent` will have empty TraceID and SpanID fields. This allows
 application transactions to be correlated with query samples collected by this receiver.
 
-> **Note:** `VARIABLE_NAME` in `performance_schema.user_variables_by_thread`
-> stores the variable name in the case it was originally set. The collector
-> matches it as `'traceparent'` (lowercase), so clients must set the variable
-> using exactly `SET @traceparent = '...'`.
+> **Note:** MySQL stores user variable names in lowercase in
+> `performance_schema.user_variables_by_thread` regardless of how the client
+> spelled them. The JOIN condition `VARIABLE_NAME = 'traceparent'` therefore
+> matches any case variation the client used (e.g. `SET @TraceParent = '...'`
+> works identically to `SET @traceparent = '...'`).
 ### MySQL Requirements to enable log collection
 
 | Parameter                                | Value                            | Description                                         |

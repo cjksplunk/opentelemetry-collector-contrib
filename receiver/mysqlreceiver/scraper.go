@@ -7,7 +7,6 @@ import (
 	"container/heap"
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"sort"
 	"strconv"
@@ -749,9 +748,11 @@ func (m *mySQLScraper) scrapeQuerySamples(_ context.Context, now pcommon.Timesta
 			m.logger.Error("Failed to obfuscate query", zap.Error(obfErr))
 		}
 
-		// Use context.Background() as the default so that log records carry empty
-		// trace/span IDs when no application traceparent is present. If the sample
-		// carries a W3C traceparent, extract the application's trace context from it.
+		// Use context.Background() as the default (not the scraper ctx) so that log
+		// records carry empty trace/span IDs when no application traceparent is present.
+		// This prevents the collector's own internal scrape span from being stamped onto
+		// query-sample records. If the sample carries a W3C traceparent, extract the
+		// application's trace context from it.
 		recordCtx := context.Background()
 		if sample.traceparent != "" {
 			var tpErr error
@@ -787,7 +788,8 @@ func (m *mySQLScraper) scrapeQuerySamples(_ context.Context, now pcommon.Timesta
 
 // contextWithTraceparent extracts a W3C TraceContext traceparent from the given
 // string and returns a new context.Background()-based context carrying the
-// resulting span context. Returns an error if the traceparent is invalid.
+// resulting span context. On failure (invalid or absent traceparent), returns
+// an undecorated context.Background() and a non-nil error.
 func contextWithTraceparent(traceparent string) (context.Context, error) {
 	newCtx := propagation.TraceContext{}.Extract(context.Background(), propagation.MapCarrier{
 		"traceparent": traceparent,
@@ -795,7 +797,7 @@ func contextWithTraceparent(traceparent string) (context.Context, error) {
 	if trace.SpanContextFromContext(newCtx).IsValid() {
 		return newCtx, nil
 	}
-	return context.Background(), fmt.Errorf("invalid traceparent: %s", traceparent)
+	return context.Background(), errors.New("no valid span context extracted from traceparent")
 }
 
 func addPartialIfError(errors *scrapererror.ScrapeErrors, err error) {
