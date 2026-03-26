@@ -38,7 +38,7 @@ func TestListAndWatchFiresStaticEndpoint(t *testing.T) {
 	require.Len(t, n.added, 1)
 	ep := n.added[0]
 	assert.Equal(t, observer.EndpointID("static-0"), ep.ID)
-	assert.Equal(t, "", ep.Target, "Target must be empty; subreceiver must specify endpoint explicitly")
+	assert.Empty(t, ep.Target, "Target must be empty; subreceiver must specify endpoint explicitly")
 	assert.Equal(t, observer.StaticType, ep.Details.Type())
 	assert.Equal(t, observer.EndpointEnv{}, ep.Details.Env())
 	assert.Empty(t, n.removed, "OnRemove must not be called by ListAndWatch")
