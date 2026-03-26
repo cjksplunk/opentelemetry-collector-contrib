@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/receiver/receivertest"
 	"go.opentelemetry.io/collector/scraper/scrapererror"
 	"go.opentelemetry.io/otel/trace"
@@ -105,6 +106,7 @@ func TestScrape(t *testing.T) {
 
 		require.NoError(t, plogtest.CompareLogs(expectedQuerySample, actualQuerySamples,
 			plogtest.IgnoreTimestamp()))
+		assertLogsHaveInstanceEndpoint(t, actualQuerySamples, cfg.Endpoint)
 
 		// Scrape top queries
 		scraper.cacheAndDiff("mysql", "c16f24f908846019a741db580f6545a5933e9435a7cf1579c50794a6ca287739", "count_star", 1)
@@ -119,6 +121,7 @@ func TestScrape(t *testing.T) {
 
 		require.NoError(t, plogtest.CompareLogs(expectedTopQueries, actualTopQueries,
 			plogtest.IgnoreTimestamp()))
+		assertLogsHaveInstanceEndpoint(t, actualTopQueries, cfg.Endpoint)
 	})
 
 	t.Run("scrape has partial failure", func(t *testing.T) {
@@ -192,6 +195,19 @@ func TestScrapeBufferPoolPagesMiscOutOfBounds(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, pmetrictest.CompareMetrics(expectedMetrics, actualMetrics,
 		pmetrictest.IgnoreMetricDataPointsOrder(), pmetrictest.IgnoreStartTimestamp(), pmetrictest.IgnoreTimestamp()))
+}
+
+// assertLogsHaveInstanceEndpoint verifies that every ResourceLogs in logs carries
+// mysql.instance.endpoint as a resource attribute with the expected value.
+func assertLogsHaveInstanceEndpoint(t *testing.T, logs plog.Logs, expectedEndpoint string) {
+	t.Helper()
+	require.Positive(t, logs.ResourceLogs().Len(), "expected at least one ResourceLogs")
+	for i := 0; i < logs.ResourceLogs().Len(); i++ {
+		attrs := logs.ResourceLogs().At(i).Resource().Attributes()
+		val, ok := attrs.Get("mysql.instance.endpoint")
+		require.True(t, ok, "ResourceLogs[%d] missing mysql.instance.endpoint resource attribute", i)
+		require.Equal(t, expectedEndpoint, val.Str(), "ResourceLogs[%d] mysql.instance.endpoint mismatch", i)
+	}
 }
 
 func TestContextWithTraceparent(t *testing.T) {
