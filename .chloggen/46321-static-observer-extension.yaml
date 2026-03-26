@@ -1,6 +1,6 @@
 change_type: new_component
 
-component: extension/staticobserver
+component: extension/static_observer
 
 note: Add `staticobserver` extension that fires a single synthetic endpoint, enabling `receiver_creator` to start subreceivers with per-instance resource attributes without modifying receiver code.
 
