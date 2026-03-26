@@ -822,6 +822,8 @@ metrics:
 
 tests:
   config:
+    tls:
+      insecure: true
   goleak:
     ignore:
       any:
