@@ -28,7 +28,7 @@ resourceLogs:
                   doubleValue: 0.001021918999
             body: {}
             eventName: db.server.top_query
-            timeUnixNano: "1774605399366936000"
+            timeUnixNano: "1754297675177556000"
         scope:
           name: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/mysqlreceiver
           version: latest

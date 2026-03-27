@@ -39,7 +39,7 @@ resourceLogs:
                   stringValue: CPU
               - key: mysql.session.status
                 value:
-                  stringValue: waiting
+                  stringValue: 'waiting'
               - key: mysql.session.id
                 value:
                   intValue: "-54321"
@@ -60,7 +60,7 @@ resourceLogs:
                   intValue: "1234"
             body: {}
             eventName: db.server.query_sample
-            timeUnixNano: "1774605399365757000"
+            timeUnixNano: "1754284840912240000"
         scope:
           name: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/mysqlreceiver
           version: latest
