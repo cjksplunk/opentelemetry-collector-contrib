@@ -20,7 +20,8 @@ set -euo pipefail
 #   The integration/demo branch is checked out in an isolated worktree at <path>.
 #   The worktree is created automatically if it does not exist (full checkout).
 #   Example: ./scripts/integration-build.sh --worktree /tmp/otelcol-integration
-#   Conflict resolution: cd <path>, resolve, git add, git merge --continue --no-verify,
+#   Conflict resolution: cd <path>, resolve, git add <files>,
+#   then: GIT_EDITOR=: git commit --no-verify
 #   then run this script again with --continue (and the same --worktree <path>).
 #
 # Per-merge tests:
@@ -39,7 +40,7 @@ INTEGRATION_BRANCH="integration/demo"
 UPSTREAM_REMOTE="upstream"
 ORIGIN_REMOTE="origin"
 IMAGE="ckalbren559/otelcol-demo"
-TEST_PKG="./receiver/mysqlreceiver/..."
+TEST_DIR="receiver/mysqlreceiver"
 
 # --- parse flags ---
 CONTINUE=false
@@ -101,6 +102,7 @@ else
   done
 
   info "Resetting $INTEGRATION_BRANCH to upstream/main in $WORK_DIR..."
+  git -C "$WORK_DIR" merge --abort 2>/dev/null || true
   git -C "$WORK_DIR" checkout -B "$INTEGRATION_BRANCH" "$UPSTREAM_REMOTE/main"
 fi
 
@@ -110,7 +112,7 @@ fi
 run_tests() {
   local branch="$1"
   info "Running tests after merging $branch..."
-  if ! (cd "$WORK_DIR" && go test $TEST_PKG 2>&1); then
+  if ! (cd "$WORK_DIR/$TEST_DIR" && go test ./... 2>&1); then
     echo ""
     echo "================================================================"
     echo "TEST FAILURE after merging '$branch'."
@@ -145,7 +147,7 @@ for (( i=START_INDEX; i<${#BRANCHES[@]}; i++ )); do
       echo "  cd $WORK_DIR"
     fi
     echo "  git add <conflicted files>"
-    echo "  git merge --continue --no-verify"
+    echo "  GIT_EDITOR=: git commit --no-verify"
     echo ""
     echo "Then resume the build with:"
     echo "  $RESUME_CMD"
@@ -183,7 +185,7 @@ if ! $NO_DOCKER; then
 
   if ! $NO_PUSH; then
     # Check docker auth before attempting push
-    if ! docker info --format '{{.Username}}' 2>/dev/null | grep -q .; then
+    if ! cat ~/.docker/config.json 2>/dev/null | grep -q 'auths'; then
       fail "Not logged in to Docker Hub. Run 'docker login' first, then retry."
     fi
     info "Pushing $IMAGE:$NEXT_TAG..."
