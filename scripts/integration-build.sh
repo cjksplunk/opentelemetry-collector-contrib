@@ -18,10 +18,16 @@ set -euo pipefail
 # Worktree mode:
 #   --worktree <path> keeps your main clone on its current branch throughout.
 #   The integration/demo branch is checked out in an isolated worktree at <path>.
-#   The worktree is created automatically if it does not exist.
+#   The worktree is created automatically if it does not exist (full checkout).
 #   Example: ./scripts/integration-build.sh --worktree /tmp/otelcol-integration
-#   Conflict resolution: cd <path>, resolve, git add, git merge --continue, then
-#   run this script again with --continue (and the same --worktree <path>).
+#   Conflict resolution: cd <path>, resolve, git add, git merge --continue --no-verify,
+#   then run this script again with --continue (and the same --worktree <path>).
+#
+# Per-merge tests:
+#   After each successful merge, go test ./receiver/mysqlreceiver/... is run
+#   from the work directory. A test failure stops the build with instructions.
+#   Pre-commit hooks are skipped on merge commits (--no-verify) since this is
+#   a scratch branch; test validation is done explicitly instead.
 # ---------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,6 +39,7 @@ INTEGRATION_BRANCH="integration/demo"
 UPSTREAM_REMOTE="upstream"
 ORIGIN_REMOTE="origin"
 IMAGE="ckalbren559/otelcol-demo"
+TEST_PKG="./receiver/mysqlreceiver/..."
 
 # --- parse flags ---
 CONTINUE=false
@@ -65,8 +72,8 @@ mapfile -t BRANCHES < "$BRANCHES_FILE"
 if [[ -n "$WORKTREE_PATH" ]]; then
   WORK_DIR="$WORKTREE_PATH"
   if [[ ! -d "$WORK_DIR" ]]; then
-    info "Creating worktree at $WORK_DIR..."
-    git -C "$REPO_ROOT" worktree add --no-checkout "$WORK_DIR" || \
+    info "Creating worktree at $WORK_DIR (full checkout, may take a moment)..."
+    git -C "$REPO_ROOT" worktree add "$WORK_DIR" "$UPSTREAM_REMOTE/main" || \
       fail "Could not create worktree at $WORK_DIR"
     success "Worktree created at $WORK_DIR"
   else
@@ -97,11 +104,35 @@ else
   git -C "$WORK_DIR" checkout -B "$INTEGRATION_BRANCH" "$UPSTREAM_REMOTE/main"
 fi
 
+# --- run_tests <branch> ---
+# Runs go test for the receiver package from WORK_DIR.
+# Stops the build with instructions on failure.
+run_tests() {
+  local branch="$1"
+  info "Running tests after merging $branch..."
+  if ! (cd "$WORK_DIR" && go test $TEST_PKG 2>&1); then
+    echo ""
+    echo "================================================================"
+    echo "TEST FAILURE after merging '$branch'."
+    echo ""
+    echo "Fix the failing tests in $WORK_DIR, then re-run:"
+    RESUME_CMD="./scripts/integration-build.sh --continue"
+    [[ -n "$WORKTREE_PATH" ]] && RESUME_CMD="$RESUME_CMD --worktree $WORKTREE_PATH"
+    echo "  $RESUME_CMD"
+    echo "================================================================"
+    # Save state so --continue re-runs from this branch (re-tests after fix)
+    echo "$i" > "$STATE_FILE"
+    exit 1
+  fi
+  success "Tests passed for $branch"
+}
+
 # --- merge loop ---
 for (( i=START_INDEX; i<${#BRANCHES[@]}; i++ )); do
   branch="${BRANCHES[$i]}"
   info "Merging $branch ($((i+1))/${#BRANCHES[@]})..."
-  if ! git -C "$WORK_DIR" merge --no-ff "$ORIGIN_REMOTE/$branch" -m "chore(integration): merge $branch"; then
+  if ! git -C "$WORK_DIR" merge --no-ff --no-verify "$ORIGIN_REMOTE/$branch" \
+       -m "chore(integration): merge $branch"; then
     echo "$i" > "$STATE_FILE"
     RESUME_CMD="./scripts/integration-build.sh --continue"
     [[ -n "$WORKTREE_PATH" ]] && RESUME_CMD="$RESUME_CMD --worktree $WORKTREE_PATH"
@@ -114,7 +145,7 @@ for (( i=START_INDEX; i<${#BRANCHES[@]}; i++ )); do
       echo "  cd $WORK_DIR"
     fi
     echo "  git add <conflicted files>"
-    echo "  git merge --continue"
+    echo "  git merge --continue --no-verify"
     echo ""
     echo "Then resume the build with:"
     echo "  $RESUME_CMD"
@@ -122,9 +153,10 @@ for (( i=START_INDEX; i<${#BRANCHES[@]}; i++ )); do
     exit 1
   fi
   success "Merged $branch"
+  run_tests "$branch"
 done
 
-# Clean up state file on successful merge
+# Clean up state file on successful merge + test run
 rm -f "$STATE_FILE"
 
 # --- push integration branch ---
