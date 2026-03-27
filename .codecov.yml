@@ -385,6 +385,10 @@ component_management:
     name: extension_observer_kafkatopicsobserver
     paths:
     - extension/observer/kafkatopicsobserver/**
+  - component_id: extension_observer_staticobserver
+    name: extension_observer_staticobserver
+    paths:
+    - extension/observer/staticobserver/**
   - component_id: extension_oidcauth
     name: extension_oidcauth
     paths:

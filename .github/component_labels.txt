@@ -105,6 +105,7 @@ extension/observer/ecsobserver extension/observer/ecsobserver
 extension/observer/hostobserver extension/observer/hostobserver
 extension/observer/k8sobserver extension/observer/k8sobserver
 extension/observer/kafkatopicsobserver extension/observer/kafkatopicsobserver
+extension/observer/staticobserver extension/observer/staticobserver
 extension/oidcauthextension extension/oidcauth
 extension/opampcustommessages extension/opampcustommessages
 extension/opampextension extension/opamp

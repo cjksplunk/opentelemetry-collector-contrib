@@ -119,6 +119,7 @@ components:
     - extension/sigv4auth
     - extension/skywalking_encoding
     - extension/solarwindsapmsettings
+    - extension/static_observer
     - extension/storage
     - extension/sumologic
     - extension/text_encoding

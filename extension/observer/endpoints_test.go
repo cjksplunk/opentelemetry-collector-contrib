@@ -308,6 +308,20 @@ func TestEndpointEnv(t *testing.T) {
 				"endpoint": "topic1",
 			},
 		},
+		{
+			name: "Static",
+			endpoint: Endpoint{
+				ID:      EndpointID("static-0"),
+				Target:  "",
+				Details: &Static{},
+			},
+			want: EndpointEnv{
+				"id":       "static-0",
+				"type":     "static",
+				"host":     "",
+				"endpoint": "",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

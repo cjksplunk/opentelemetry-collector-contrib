@@ -37,6 +37,8 @@ const (
 	ContainerType EndpointType = "container"
 	// KafkaTopicType is a kafka topic endpoint
 	KafkaTopicType EndpointType = "kafka.topics"
+	// StaticType is a synthetic static endpoint fired by the static_observer extension.
+	StaticType EndpointType = "static"
 )
 
 var (
@@ -47,6 +49,7 @@ var (
 	_ EndpointDetails = (*HostPort)(nil)
 	_ EndpointDetails = (*Container)(nil)
 	_ EndpointDetails = (*KafkaTopic)(nil)
+	_ EndpointDetails = (*Static)(nil)
 )
 
 // EndpointDetails provides additional context about an endpoint such as a Pod or Port.
@@ -388,4 +391,15 @@ func (*KafkaTopic) Env() EndpointEnv {
 
 func (*KafkaTopic) Type() EndpointType {
 	return KafkaTopicType
+}
+
+// Static is a synthetic endpoint fired by the static_observer extension.
+type Static struct{}
+
+func (*Static) Env() EndpointEnv {
+	return EndpointEnv{}
+}
+
+func (*Static) Type() EndpointType {
+	return StaticType
 }

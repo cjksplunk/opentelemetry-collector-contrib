@@ -125,6 +125,7 @@ body:
       - extension/observer/hostobserver
       - extension/observer/k8sobserver
       - extension/observer/kafkatopicsobserver
+      - extension/observer/staticobserver
       - extension/oidcauth
       - extension/opamp
       - extension/opampcustommessages
