@@ -84,6 +84,10 @@ else
   WORK_DIR="$REPO_ROOT"
 fi
 
+# Enable rerere so recorded conflict resolutions are replayed automatically
+git -C "$REPO_ROOT" config rerere.enabled true
+git -C "$REPO_ROOT" config rerere.autoupdate true
+
 # --- determine start index ---
 START_INDEX=0
 if $CONTINUE; then
@@ -135,24 +139,32 @@ for (( i=START_INDEX; i<${#BRANCHES[@]}; i++ )); do
   info "Merging $branch ($((i+1))/${#BRANCHES[@]})..."
   if ! git -C "$WORK_DIR" merge --no-ff --no-verify "$ORIGIN_REMOTE/$branch" \
        -m "chore(integration): merge $branch"; then
-    echo "$i" > "$STATE_FILE"
-    RESUME_CMD="./scripts/integration-build.sh --continue"
-    [[ -n "$WORKTREE_PATH" ]] && RESUME_CMD="$RESUME_CMD --worktree $WORKTREE_PATH"
-    echo ""
-    echo "================================================================"
-    echo "CONFLICT: merging '$branch' failed."
-    echo ""
-    if [[ -n "$WORKTREE_PATH" ]]; then
-      echo "Resolve the conflicts in the worktree:"
-      echo "  cd $WORK_DIR"
+    # Check whether rerere resolved all conflicts (no leftover markers remain)
+    if ! git -C "$WORK_DIR" diff --check 2>/dev/null | grep -q "leftover conflict marker"; then
+      info "rerere resolved all conflicts for $branch — auto-committing..."
+      GIT_EDITOR=: git -C "$WORK_DIR" commit --no-verify \
+        -m "chore(integration): merge $branch"
+      success "Auto-committed rerere-resolved merge of $branch"
+    else
+      echo "$i" > "$STATE_FILE"
+      RESUME_CMD="./scripts/integration-build.sh --continue"
+      [[ -n "$WORKTREE_PATH" ]] && RESUME_CMD="$RESUME_CMD --worktree $WORKTREE_PATH"
+      echo ""
+      echo "================================================================"
+      echo "CONFLICT: merging '$branch' failed."
+      echo ""
+      if [[ -n "$WORKTREE_PATH" ]]; then
+        echo "Resolve the conflicts in the worktree:"
+        echo "  cd $WORK_DIR"
+      fi
+      echo "  git add <conflicted files>"
+      echo "  GIT_EDITOR=: git commit --no-verify"
+      echo ""
+      echo "Then resume the build with:"
+      echo "  $RESUME_CMD"
+      echo "================================================================"
+      exit 1
     fi
-    echo "  git add <conflicted files>"
-    echo "  GIT_EDITOR=: git commit --no-verify"
-    echo ""
-    echo "Then resume the build with:"
-    echo "  $RESUME_CMD"
-    echo "================================================================"
-    exit 1
   fi
   success "Merged $branch"
   run_tests "$branch"
