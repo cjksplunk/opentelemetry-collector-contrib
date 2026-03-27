@@ -42,35 +42,48 @@ Merged in this order (dependency order, narrowest-to-broadest):
 
 **Invocation:**
 ```bash
-./scripts/integration-build.sh              # full build
-./scripts/integration-build.sh --continue   # resume after manual conflict resolution
-./scripts/integration-build.sh --no-push    # build image locally, skip docker push
-./scripts/integration-build.sh --no-docker  # merge + push branch only, skip build
+./scripts/integration-build.sh                              # full build (in-place)
+./scripts/integration-build.sh --worktree <path>            # full build via worktree (recommended)
+./scripts/integration-build.sh --continue                   # resume after unresolvable conflict
+./scripts/integration-build.sh --no-push                    # build image locally, skip docker push
+./scripts/integration-build.sh --no-docker                  # merge + push branch only, skip build
+# Example:
+./scripts/integration-build.sh --worktree /tmp/otelcol-integration --no-docker
 ```
+
+**Worktree mode (recommended):** `--worktree <path>` keeps the main clone on its current branch throughout. The `integration/demo` branch is checked out in an isolated worktree at `<path>`, created automatically on first run. Use `/tmp/otelcol-integration` as the canonical path.
 
 **Full run sequence:**
 1. Fetch upstream `main` and all feature branches from `origin`
-2. Reset local `integration/demo` to upstream `main` HEAD
-3. For each branch in `scripts/integration-branches.txt`:
-   - `git merge --no-ff origin/<branch>`
-   - On conflict: print which branch failed, write resume index to `.integration-state`, exit non-zero with instructions
-4. Force-push `integration/demo` to `origin`
-5. Build binary: `GOOS=linux GOARCH=amd64 make otelcontribcol`
-6. Build image: `make docker-otelcontribcol`
-7. Read current tag number from `.integration-tag`, increment it
-8. Tag image: `docker tag otelcontribcol:latest ckalbren559/otelcol-demo:<N>`
-9. Push image: `docker push ckalbren559/otelcol-demo:<N>`
-10. Print new tag number so Helm values can be updated
+2. Abort any in-progress merge in the work directory, then reset `integration/demo` to upstream `main` HEAD
+3. Enable `git rerere` (`rerere.enabled=true`, `rerere.autoupdate=true`) so recorded conflict resolutions replay automatically
+4. For each branch in `scripts/integration-branches.txt`:
+   - `git merge --no-ff --no-verify origin/<branch>`
+   - After merge, run `go test ./...` from `receiver/mysqlreceiver/` — failure stops the build with resume instructions
+   - On conflict: if rerere resolved all conflicts (no leftover markers), auto-commit and continue; otherwise print instructions, write resume index to `.integration-state`, exit non-zero
+5. Force-push `integration/demo` to `origin`
+6. Build binary: `GOOS=linux GOARCH=amd64 make otelcontribcol`
+7. Build image: `make docker-otelcontribcol`
+8. Read current tag number from `.integration-tag`, increment it
+9. Tag image: `docker tag otelcontribcol:latest ckalbren559/otelcol-demo:<N>`
+10. Push image: `docker push ckalbren559/otelcol-demo:<N>`
+11. Print new tag number so Helm values can be updated
 
-**Conflict resolution flow:**
+**Conflict resolution (automatic via rerere):**
+Known conflicts between the listed branches are pre-recorded in `.git/rr-cache`. The script detects when rerere has staged all resolutions and auto-commits — no user interaction required for the current branch set.
+
+**Conflict resolution (manual fallback):**
+If a new conflict arises that rerere cannot resolve:
 ```
-$ ./scripts/integration-build.sh
-...
-CONFLICT: merging tune-query-plan-obfuscation failed.
-Resolve conflicts, then run: git add <files> && git merge --continue
-Then resume with: ./scripts/integration-build.sh --continue
+CONFLICT: merging <branch> failed.
+cd /tmp/otelcol-integration
+git add <conflicted files>
+GIT_EDITOR=: git commit --no-verify    # NOT git merge --continue (flags rejected by this git version)
+./scripts/integration-build.sh --worktree /tmp/otelcol-integration --continue
 ```
-User resolves manually in the local clone, then runs `--continue` to finish remaining branches + build.
+
+**Per-merge test runner:**
+After each successful merge, `go test ./...` runs from `receiver/mysqlreceiver/` (must run from the module directory — not the repo root). Test failure saves state and exits with resume instructions identical to the conflict flow.
 
 ---
 
@@ -80,7 +93,7 @@ User resolves manually in the local clone, then runs `--continue` to finish rema
 - **Image:** `ckalbren559/otelcol-demo`
 - **Tag:** incrementing integer (`1`, `2`, `3`, ...)
 - **Tag state:** stored in `.integration-tag` (gitignored, lives in repo root)
-- **Auth:** script checks for Docker login before attempting push; fails fast with a clear message if not authenticated
+- **Auth:** script checks `~/.docker/config.json` for `auths` entry before attempting push; fails fast with a clear message if not authenticated. (`docker info --format '{{.Username}}'` does not work in current Docker versions.)
 
 ---
 
@@ -92,9 +105,12 @@ scripts/
   integration-branches.txt    # ordered branch list (one per line)
 .integration-state             # resume index after conflict (gitignored)
 .integration-tag               # current build number (gitignored)
+.git/rr-cache/                 # rerere conflict resolution cache (shared by worktree)
 docs/superpowers/specs/
   2026-03-27-integration-build-design.md  # this file
 ```
+
+**Worktree path:** `/tmp/otelcol-integration` — persistent between runs. A fresh run resets it to `upstream/main` and re-merges all branches. The worktree shares the main clone's `.git/rr-cache`, so recorded resolutions apply automatically.
 
 ---
 
