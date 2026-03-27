@@ -9,10 +9,19 @@ set -euo pipefail
 # and pushes to Docker Hub as ckalbren559/otelcol-demo:<N>.
 #
 # Usage:
-#   ./scripts/integration-build.sh              # full build
-#   ./scripts/integration-build.sh --continue   # resume after conflict
-#   ./scripts/integration-build.sh --no-push    # skip docker push
-#   ./scripts/integration-build.sh --no-docker  # skip binary + docker build
+#   ./scripts/integration-build.sh                          # full build (in-place)
+#   ./scripts/integration-build.sh --worktree <path>        # full build via worktree
+#   ./scripts/integration-build.sh --continue               # resume after conflict
+#   ./scripts/integration-build.sh --no-push                # skip docker push
+#   ./scripts/integration-build.sh --no-docker              # skip binary + docker build
+#
+# Worktree mode:
+#   --worktree <path> keeps your main clone on its current branch throughout.
+#   The integration/demo branch is checked out in an isolated worktree at <path>.
+#   The worktree is created automatically if it does not exist.
+#   Example: ./scripts/integration-build.sh --worktree /tmp/otelcol-integration
+#   Conflict resolution: cd <path>, resolve, git add, git merge --continue, then
+#   run this script again with --continue (and the same --worktree <path>).
 # ---------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -29,12 +38,16 @@ IMAGE="ckalbren559/otelcol-demo"
 CONTINUE=false
 NO_PUSH=false
 NO_DOCKER=false
-for arg in "$@"; do
-  case "$arg" in
-    --continue)   CONTINUE=true ;;
-    --no-push)    NO_PUSH=true ;;
-    --no-docker)  NO_DOCKER=true ;;
-    *) echo "Unknown argument: $arg"; exit 1 ;;
+WORKTREE_PATH=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --continue)           CONTINUE=true; shift ;;
+    --no-push)            NO_PUSH=true; shift ;;
+    --no-docker)          NO_DOCKER=true; shift ;;
+    --worktree)
+      [[ $# -ge 2 ]] || { echo "Usage: --worktree <path>" >&2; exit 1; }
+      WORKTREE_PATH="$2"; shift 2 ;;
+    *) echo "Unknown argument: $1" >&2; exit 1 ;;
   esac
 done
 
@@ -48,6 +61,21 @@ fail()    { echo "[ERROR] $*" >&2; exit 1; }
 mapfile -t BRANCHES < "$BRANCHES_FILE"
 [[ ${#BRANCHES[@]} -gt 0 ]] || fail "Branch list is empty: $BRANCHES_FILE"
 
+# --- resolve work directory (main clone or worktree) ---
+if [[ -n "$WORKTREE_PATH" ]]; then
+  WORK_DIR="$WORKTREE_PATH"
+  if [[ ! -d "$WORK_DIR" ]]; then
+    info "Creating worktree at $WORK_DIR..."
+    git -C "$REPO_ROOT" worktree add --no-checkout "$WORK_DIR" || \
+      fail "Could not create worktree at $WORK_DIR"
+    success "Worktree created at $WORK_DIR"
+  else
+    info "Using existing worktree at $WORK_DIR"
+  fi
+else
+  WORK_DIR="$REPO_ROOT"
+fi
+
 # --- determine start index ---
 START_INDEX=0
 if $CONTINUE; then
@@ -55,35 +83,41 @@ if $CONTINUE; then
   START_INDEX=$(cat "$STATE_FILE")
   info "Resuming from branch index $START_INDEX (${BRANCHES[$START_INDEX]})"
 else
-  # Fresh build: reset integration/demo to upstream main
+  # Fresh build: fetch remotes from main clone, reset integration/demo in work dir
   info "Fetching upstream main..."
   git -C "$REPO_ROOT" fetch "$UPSTREAM_REMOTE" main
 
   info "Fetching all feature branches from origin..."
   for branch in "${BRANCHES[@]}"; do
-    git -C "$REPO_ROOT" fetch "$ORIGIN_REMOTE" "$branch" || fail "Could not fetch $ORIGIN_REMOTE/$branch — does the branch exist?"
+    git -C "$REPO_ROOT" fetch "$ORIGIN_REMOTE" "$branch" || \
+      fail "Could not fetch $ORIGIN_REMOTE/$branch — does the branch exist?"
   done
 
-  info "Resetting $INTEGRATION_BRANCH to upstream/main..."
-  git -C "$REPO_ROOT" checkout -B "$INTEGRATION_BRANCH" "$UPSTREAM_REMOTE/main"
+  info "Resetting $INTEGRATION_BRANCH to upstream/main in $WORK_DIR..."
+  git -C "$WORK_DIR" checkout -B "$INTEGRATION_BRANCH" "$UPSTREAM_REMOTE/main"
 fi
 
 # --- merge loop ---
 for (( i=START_INDEX; i<${#BRANCHES[@]}; i++ )); do
   branch="${BRANCHES[$i]}"
   info "Merging $branch ($((i+1))/${#BRANCHES[@]})..."
-  if ! git -C "$REPO_ROOT" merge --no-ff "$ORIGIN_REMOTE/$branch" -m "chore(integration): merge $branch"; then
+  if ! git -C "$WORK_DIR" merge --no-ff "$ORIGIN_REMOTE/$branch" -m "chore(integration): merge $branch"; then
     echo "$i" > "$STATE_FILE"
+    RESUME_CMD="./scripts/integration-build.sh --continue"
+    [[ -n "$WORKTREE_PATH" ]] && RESUME_CMD="$RESUME_CMD --worktree $WORKTREE_PATH"
     echo ""
     echo "================================================================"
     echo "CONFLICT: merging '$branch' failed."
     echo ""
-    echo "Resolve the conflicts, then run:"
+    if [[ -n "$WORKTREE_PATH" ]]; then
+      echo "Resolve the conflicts in the worktree:"
+      echo "  cd $WORK_DIR"
+    fi
     echo "  git add <conflicted files>"
     echo "  git merge --continue"
     echo ""
     echo "Then resume the build with:"
-    echo "  ./scripts/integration-build.sh --continue"
+    echo "  $RESUME_CMD"
     echo "================================================================"
     exit 1
   fi
@@ -95,10 +129,10 @@ rm -f "$STATE_FILE"
 
 # --- push integration branch ---
 info "Force-pushing $INTEGRATION_BRANCH to $ORIGIN_REMOTE..."
-git -C "$REPO_ROOT" push --force "$ORIGIN_REMOTE" "$INTEGRATION_BRANCH"
+git -C "$WORK_DIR" push --force "$ORIGIN_REMOTE" "$INTEGRATION_BRANCH"
 success "Pushed $INTEGRATION_BRANCH"
 
-# --- build ---
+# --- build (always runs from REPO_ROOT where the Makefile lives) ---
 if ! $NO_DOCKER; then
   info "Building otelcontribcol binary (linux/amd64)..."
   GOOS=linux GOARCH=amd64 make -C "$REPO_ROOT" otelcontribcol
