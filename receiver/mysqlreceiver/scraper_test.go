@@ -95,7 +95,6 @@ func TestScrape(t *testing.T) {
 		require.NoError(t, err)
 		expectedQuerySampleFile := filepath.Join("testdata", "scraper", "expectedQuerySamples.yaml")
 		// Uncomment this to regenerate the expected logs file
-		// Uncomment this to regenerate the expected logs file
 		// golden.WriteLogs(t, expectedQuerySampleFile, actualQuerySamples)
 		expectedQuerySample, err := golden.ReadLogs(expectedQuerySampleFile)
 		require.NoError(t, err)
@@ -109,7 +108,6 @@ func TestScrape(t *testing.T) {
 		actualTopQueries, err := scraper.scrapeTopQueryFunc(t.Context())
 		require.NoError(t, err)
 		expectedTopQueriesFile := filepath.Join("testdata", "scraper", "expectedTopQueries.yaml")
-		// Uncomment this to regenerate the expected logs file
 		// Uncomment this to regenerate the expected logs file
 		// golden.WriteLogs(t, expectedTopQueriesFile, actualTopQueries)
 		expectedTopQueries, err := golden.ReadLogs(expectedTopQueriesFile)

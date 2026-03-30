@@ -247,7 +247,6 @@ func TestMetricsBuilderConfig(t *testing.T) {
 				},
 				ResourceAttributes: ResourceAttributesConfig{
 					MysqlInstanceEndpoint: ResourceAttributeConfig{Enabled: true},
-					ServiceInstanceID:     ResourceAttributeConfig{Enabled: true},
 				},
 			},
 		},
@@ -476,7 +475,6 @@ func TestMetricsBuilderConfig(t *testing.T) {
 				},
 				ResourceAttributes: ResourceAttributesConfig{
 					MysqlInstanceEndpoint: ResourceAttributeConfig{Enabled: false},
-					ServiceInstanceID:     ResourceAttributeConfig{Enabled: false},
 				},
 			},
 		},
@@ -523,14 +521,12 @@ func TestResourceAttributesConfig(t *testing.T) {
 			name: "all_set",
 			want: ResourceAttributesConfig{
 				MysqlInstanceEndpoint: ResourceAttributeConfig{Enabled: true},
-				ServiceInstanceID:     ResourceAttributeConfig{Enabled: true},
 			},
 		},
 		{
 			name: "none_set",
 			want: ResourceAttributesConfig{
 				MysqlInstanceEndpoint: ResourceAttributeConfig{Enabled: false},
-				ServiceInstanceID:     ResourceAttributeConfig{Enabled: false},
 			},
 		},
 	}
