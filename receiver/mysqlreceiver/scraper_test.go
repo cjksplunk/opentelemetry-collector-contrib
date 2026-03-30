@@ -115,7 +115,7 @@ func TestScrape(t *testing.T) {
 		expectedTopQueries, err := golden.ReadLogs(expectedTopQueriesFile)
 		require.NoError(t, err)
 
-		require.NoError(t, plogtest.CompareLogs(actualTopQueries, expectedTopQueries,
+		require.NoError(t, plogtest.CompareLogs(expectedTopQueries, actualTopQueries,
 			plogtest.IgnoreTimestamp()))
 		assertLogsHaveInstanceEndpoint(t, actualTopQueries, "localhost:3306")
 	})
