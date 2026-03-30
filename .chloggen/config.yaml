@@ -153,6 +153,7 @@ components:
     - pkg/coreinternal
     - pkg/datadog
     - pkg/experimentalmetricmetadata
+    - pkg/expohisto
     - pkg/faro
     - pkg/fileconsumer
     - pkg/golden
@@ -196,6 +197,7 @@ components:
     - processor/groupbyattrs
     - processor/groupbytrace
     - processor/hetznerdetector
+    - processor/ibmcloudclassicdetector
     - processor/ibmcloudvpcdetector
     - processor/interval
     - processor/isolationforest
