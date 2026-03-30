@@ -1,6 +1,0 @@
-mysql-remove-processlist-eol
-mysql-fix-log-resource-attributes
-mysql-add-plan-hash-to-topx
-tune-query-plan-obfuscation
-add-support-for-tracing
-mysql-add-service-resource-attributes-clean
