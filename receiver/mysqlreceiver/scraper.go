@@ -140,7 +140,7 @@ func (m *mySQLScraper) scrape(context.Context) (pmetric.Metrics, error) {
 
 func (m *mySQLScraper) scrapeTopQueryFunc(ctx context.Context) (plog.Logs, error) {
 	if m.sqlclient == nil {
-		return plog.NewLogs(), errors.New("failed to connect to http client")
+		return plog.NewLogs(), errors.New("failed to connect to MySQL client")
 	}
 
 	errs := &scrapererror.ScrapeErrors{}
@@ -160,7 +160,7 @@ func (m *mySQLScraper) scrapeTopQueryFunc(ctx context.Context) (plog.Logs, error
 
 func (m *mySQLScraper) scrapeQuerySampleFunc(ctx context.Context) (plog.Logs, error) {
 	if m.sqlclient == nil {
-		return plog.NewLogs(), errors.New("failed to connect to http client")
+		return plog.NewLogs(), errors.New("failed to connect to MySQL client")
 	}
 
 	errs := &scrapererror.ScrapeErrors{}
@@ -720,6 +720,7 @@ func (m *mySQLScraper) scrapeTopQueries(ctx context.Context, now pcommon.Timesta
 			obfuscatedQuery,
 			obfuscatedPlan,
 			q.digest,
+			q.digest,
 			countStarVal,
 			sumTimerWaitVal,
 		)
@@ -769,6 +770,7 @@ func (m *mySQLScraper) scrapeQuerySamples(ctx context.Context, now pcommon.Times
 			sample.processlistCommand,
 			sample.processlistState,
 			obfuscatedQuery,
+			sample.digest,
 			sample.digest,
 			sample.eventID,
 			sample.waitEvent,
