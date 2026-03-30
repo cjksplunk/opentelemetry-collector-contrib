@@ -4,6 +4,9 @@ resourceLogs:
         - key: mysql.instance.endpoint
           value:
             stringValue: localhost:3306
+        - key: service.instance.id
+          value:
+            stringValue: 2b0d1f0c-857b-5a7c-9f20-6e0ecae7598f
     scopeLogs:
       - logRecords:
           - attributes:
@@ -39,7 +42,7 @@ resourceLogs:
                   stringValue: CPU
               - key: mysql.session.status
                 value:
-                  stringValue: 'waiting'
+                  stringValue: waiting
               - key: mysql.session.id
                 value:
                   intValue: "-54321"
@@ -60,7 +63,7 @@ resourceLogs:
                   intValue: "1234"
             body: {}
             eventName: db.server.query_sample
-            timeUnixNano: "1754284840912240000"
+            timeUnixNano: "1774870101026104000"
         scope:
           name: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/mysqlreceiver
           version: latest

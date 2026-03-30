@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/hashicorp/golang-lru/v2/expirable"
 	"go.opentelemetry.io/collector/component"
@@ -26,6 +27,10 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/mysqlreceiver/internal/metadata"
 )
 
+// otelServiceInstanceNamespace is the UUID v5 namespace for service.instance.id,
+// as defined by the OpenTelemetry specification.
+var otelServiceInstanceNamespace = uuid.MustParse("4d63009a-8d0f-11ee-aad7-4c796ed8e320")
+
 type mySQLScraper struct {
 	sqlclient              client
 	logger                 *zap.Logger
@@ -36,6 +41,7 @@ type mySQLScraper struct {
 	queryPlanCache         *expirable.LRU[string, string]
 	obfuscator             *obfuscator
 	lastExecutionTimestamp time.Time
+	serviceInstanceID      string
 
 	// Feature gates regarding resource attributes
 	renameCommands bool
@@ -56,6 +62,7 @@ func newMySQLScraper(
 		queryPlanCache:         queryPlanCache,
 		obfuscator:             newObfuscator(),
 		lastExecutionTimestamp: time.Unix(0, 0),
+		serviceInstanceID:      uuid.NewSHA1(otelServiceInstanceNamespace, []byte(config.Endpoint)).String(),
 	}
 }
 
@@ -147,6 +154,7 @@ func (m *mySQLScraper) scrapeTopQueryFunc(ctx context.Context) (plog.Logs, error
 	}
 	rb := m.lb.NewResourceBuilder()
 	rb.SetMysqlInstanceEndpoint(m.config.Endpoint)
+	rb.SetServiceInstanceID(m.serviceInstanceID)
 	return m.lb.Emit(metadata.WithLogsResource(rb.Emit())), errs.Combine()
 }
 
@@ -163,6 +171,7 @@ func (m *mySQLScraper) scrapeQuerySampleFunc(ctx context.Context) (plog.Logs, er
 
 	rb := m.lb.NewResourceBuilder()
 	rb.SetMysqlInstanceEndpoint(m.config.Endpoint)
+	rb.SetServiceInstanceID(m.serviceInstanceID)
 	return m.lb.Emit(metadata.WithLogsResource(rb.Emit())), errs.Combine()
 }
 
