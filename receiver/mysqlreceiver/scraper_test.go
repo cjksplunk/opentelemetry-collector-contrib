@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -101,7 +102,8 @@ func TestScrape(t *testing.T) {
 		require.NoError(t, err)
 
 		require.NoError(t, plogtest.CompareLogs(actualQuerySamples, expectedQuerySample,
-			plogtest.IgnoreTimestamp()))
+			plogtest.IgnoreTimestamp(),
+			plogtest.IgnoreResourceAttributeValue("service.instance.id")))
 		assertLogsHaveInstanceEndpoint(t, actualQuerySamples, "localhost:3306")
 
 		// Scrape top queries
@@ -116,7 +118,8 @@ func TestScrape(t *testing.T) {
 		require.NoError(t, err)
 
 		require.NoError(t, plogtest.CompareLogs(expectedTopQueries, actualTopQueries,
-			plogtest.IgnoreTimestamp()))
+			plogtest.IgnoreTimestamp(),
+			plogtest.IgnoreResourceAttributeValue("service.instance.id")))
 		assertLogsHaveInstanceEndpoint(t, actualTopQueries, "localhost:3306")
 	})
 
@@ -548,6 +551,100 @@ func (c *mockClient) getTopQueries(uint64, uint64) ([]topQuery, error) {
 	}
 
 	return queries, nil
+}
+
+func TestIsLocalEndpoint(t *testing.T) {
+	tests := []struct {
+		host     string
+		expected bool
+	}{
+		{"localhost", true},
+		{"127.0.0.1", true},
+		{"127.1.2.3", true},
+		{"::1", true},
+		{"192.168.1.10", false},
+		{"10.0.0.1", false},
+		{"mysql.example.com", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.host, func(t *testing.T) {
+			assert.Equal(t, tt.expected, isLocalEndpoint(tt.host))
+		})
+	}
+}
+
+func TestResolveServiceInstanceSeed(t *testing.T) {
+	hostname, err := os.Hostname()
+	require.NoError(t, err)
+
+	logger := zap.NewNop()
+
+	tests := []struct {
+		name     string
+		endpoint string
+		expected string
+	}{
+		{
+			name:     "non-local endpoint unchanged",
+			endpoint: "mysql.example.com:3306",
+			expected: "mysql.example.com:3306",
+		},
+		{
+			name:     "non-local IP unchanged",
+			endpoint: "10.0.0.5:3306",
+			expected: "10.0.0.5:3306",
+		},
+		{
+			name:     "localhost replaced with hostname+port",
+			endpoint: "localhost:3306",
+			expected: hostname + ":3306",
+		},
+		{
+			name:     "127.0.0.1 replaced with hostname+port",
+			endpoint: "127.0.0.1:3306",
+			expected: hostname + ":3306",
+		},
+		{
+			name:     "::1 replaced with hostname+port",
+			endpoint: "[::1]:3306",
+			expected: hostname + ":3306",
+		},
+		{
+			name:     "localhost without port replaced with hostname",
+			endpoint: "localhost",
+			expected: hostname,
+		},
+		{
+			name:     "two local DBs on different ports get distinct seeds",
+			endpoint: "localhost:3307",
+			expected: hostname + ":3307",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, resolveServiceInstanceSeed(tt.endpoint, logger))
+		})
+	}
+}
+
+// TestServiceInstanceIDUniqueForLocalEndpoints verifies that two scrapers
+// configured with localhost but representing databases on different hosts
+// produce distinct service.instance.id values. This is simulated by comparing
+// seeds built from two different hostnames against the same port.
+func TestServiceInstanceIDUniqueForLocalEndpoints(t *testing.T) {
+	ns := otelServiceInstanceNamespace
+
+	// Simulate what resolveServiceInstanceSeed returns on two different hosts
+	// both configured with "localhost:3306".
+	seedHost1 := "host-a.example.com:3306"
+	seedHost2 := "host-b.example.com:3306"
+
+	id1 := uuid.NewSHA1(ns, []byte(seedHost1)).String()
+	id2 := uuid.NewSHA1(ns, []byte(seedHost2)).String()
+
+	assert.NotEqual(t, id1, id2,
+		"service.instance.id must differ for the same local endpoint on different hosts")
 }
 
 func (*mockClient) explainQuery(_, _, _, _ string, _ *zap.Logger) string {

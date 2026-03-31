@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"os"
 	"sort"
 	"strconv"
 	"time"
@@ -53,6 +54,7 @@ func newMySQLScraper(
 	cache *lru.Cache[string, int64],
 	queryPlanCache *expirable.LRU[string, string],
 ) *mySQLScraper {
+	serviceInstanceID := uuid.NewSHA1(otelServiceInstanceNamespace, []byte(resolveServiceInstanceSeed(config.Endpoint, settings.Logger))).String()
 	return &mySQLScraper{
 		logger:                 settings.Logger,
 		config:                 config,
@@ -62,8 +64,51 @@ func newMySQLScraper(
 		queryPlanCache:         queryPlanCache,
 		obfuscator:             newObfuscator(),
 		lastExecutionTimestamp: time.Unix(0, 0),
-		serviceInstanceID:      uuid.NewSHA1(otelServiceInstanceNamespace, []byte(config.Endpoint)).String(),
+		serviceInstanceID:      serviceInstanceID,
 	}
+}
+
+// resolveServiceInstanceSeed returns the endpoint string to use as the UUID v5
+// seed for service.instance.id. For local endpoints (localhost, loopback IPs),
+// it substitutes the machine hostname so that co-hosted receivers on different
+// machines produce distinct IDs. The port is preserved in the seed so two local
+// databases on different ports remain distinguishable. The original endpoint
+// value is never modified.
+//
+// If the machine hostname cannot be resolved, a warning is logged and the
+// original endpoint is used as the seed — note that this will produce a
+// non-unique service.instance.id for co-hosted receivers.
+func resolveServiceInstanceSeed(endpoint string, logger *zap.Logger) string {
+	host, port, err := net.SplitHostPort(endpoint)
+	if err != nil {
+		host = endpoint
+		port = ""
+	}
+
+	if isLocalEndpoint(host) {
+		hostname, hostnameErr := os.Hostname()
+		if hostnameErr != nil {
+			logger.Warn("Failed to resolve machine hostname for service.instance.id generation; "+
+				"service.instance.id may not be unique for co-hosted receivers using a local endpoint",
+				zap.String("endpoint", endpoint),
+				zap.Error(hostnameErr))
+			return endpoint
+		}
+		if port != "" {
+			return net.JoinHostPort(hostname, port)
+		}
+		return hostname
+	}
+	return endpoint
+}
+
+// isLocalEndpoint reports whether host refers to the local machine.
+func isLocalEndpoint(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // start starts the scraper by initializing the db client connection.
