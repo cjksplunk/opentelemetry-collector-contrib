@@ -91,7 +91,8 @@ func TestScrape(t *testing.T) {
 		require.NoError(t, err)
 
 		require.NoError(t, pmetrictest.CompareMetrics(expectedMetrics, actualMetrics,
-			pmetrictest.IgnoreMetricDataPointsOrder(), pmetrictest.IgnoreStartTimestamp(), pmetrictest.IgnoreTimestamp()))
+			pmetrictest.IgnoreMetricDataPointsOrder(), pmetrictest.IgnoreStartTimestamp(), pmetrictest.IgnoreTimestamp(),
+			pmetrictest.IgnoreResourceAttributeValue("service.instance.id")))
 
 		actualQuerySamples, err := scraper.scrapeQuerySampleFunc(t.Context())
 		require.NoError(t, err)
@@ -156,7 +157,7 @@ func TestScrape(t *testing.T) {
 		require.NoError(t, err)
 		assert.NoError(t, pmetrictest.CompareMetrics(expectedMetrics, actualMetrics,
 			pmetrictest.IgnoreMetricDataPointsOrder(), pmetrictest.IgnoreStartTimestamp(),
-			pmetrictest.IgnoreTimestamp()))
+			pmetrictest.IgnoreTimestamp(), pmetrictest.IgnoreResourceAttributeValue("service.instance.id")))
 
 		var partialError scrapererror.PartialScrapeError
 		require.ErrorAs(t, scrapeErr, &partialError, "returned error was not PartialScrapeError")
@@ -193,7 +194,8 @@ func TestScrapeBufferPoolPagesMiscOutOfBounds(t *testing.T) {
 	actualMetrics, err := scraper.scrape(t.Context())
 	require.NoError(t, err)
 	require.NoError(t, pmetrictest.CompareMetrics(expectedMetrics, actualMetrics,
-		pmetrictest.IgnoreMetricDataPointsOrder(), pmetrictest.IgnoreStartTimestamp(), pmetrictest.IgnoreTimestamp()))
+		pmetrictest.IgnoreMetricDataPointsOrder(), pmetrictest.IgnoreStartTimestamp(), pmetrictest.IgnoreTimestamp(),
+		pmetrictest.IgnoreResourceAttributeValue("service.instance.id")))
 }
 
 func assertLogsHaveInstanceEndpoint(t *testing.T, logs plog.Logs, expectedEndpoint string) {

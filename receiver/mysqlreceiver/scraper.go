@@ -179,6 +179,7 @@ func (m *mySQLScraper) scrape(context.Context) (pmetric.Metrics, error) {
 
 	rb := m.mb.NewResourceBuilder()
 	rb.SetMysqlInstanceEndpoint(m.config.Endpoint)
+	rb.SetServiceInstanceID(m.serviceInstanceID)
 	m.mb.EmitForResource(metadata.WithResource(rb.Emit()))
 
 	return m.mb.Emit(), errs.Combine()
