@@ -1,6 +1,5 @@
 local/
 vendor/
-.claude.local.md
 
 # Dev Container
 /.devcontainer/
@@ -51,7 +50,3 @@ internal/tools/testresults/*
 go.work*
 
 /result
-
-# Integration build state
-.integration-state
-.integration-tag
