@@ -649,6 +649,51 @@ func TestServiceInstanceIDUniqueForLocalEndpoints(t *testing.T) {
 		"service.instance.id must differ for the same local endpoint on different hosts")
 }
 
+// TestServiceInstanceIDEmittedWhenEnabled verifies that when service.instance.id
+// is explicitly enabled in the resource attributes config, the log scrapers emit
+// it as a resource attribute with a valid deterministic UUID v5 value.
+func TestServiceInstanceIDEmittedWhenEnabled(t *testing.T) {
+	cfg := createDefaultConfig().(*Config)
+	cfg.Username = "otel"
+	cfg.Password = "otel"
+	cfg.AddrConfig = confignet.AddrConfig{Endpoint: "localhost:3306"}
+	cfg.LogsBuilderConfig.Events.DbServerQuerySample.Enabled = true
+	cfg.LogsBuilderConfig.Events.DbServerTopQuery.Enabled = true
+	cfg.LogsBuilderConfig.ResourceAttributes.ServiceInstanceID.Enabled = true
+
+	scraper := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](100), newTTLCache[string](0, time.Hour*24*365*10))
+	scraper.sqlclient = &mockClient{
+		querySamplesFile: "query_samples",
+		topQueriesFile:   "top_queries",
+	}
+	scraper.cacheAndDiff("mysql", "c16f24f908846019a741db580f6545a5933e9435a7cf1579c50794a6ca287739", "count_star", 1)
+	scraper.cacheAndDiff("mysql", "c16f24f908846019a741db580f6545a5933e9435a7cf1579c50794a6ca287739", "sum_timer_wait", 1)
+
+	for _, scrapeFunc := range []func() (plog.Logs, error){
+		func() (plog.Logs, error) { return scraper.scrapeQuerySampleFunc(t.Context()) },
+		func() (plog.Logs, error) { return scraper.scrapeTopQueryFunc(t.Context()) },
+	} {
+		logs, err := scrapeFunc()
+		require.NoError(t, err)
+		require.Equal(t, 1, logs.ResourceLogs().Len())
+		attrs := logs.ResourceLogs().At(0).Resource().Attributes()
+
+		endpointVal, ok := attrs.Get("mysql.instance.endpoint")
+		require.True(t, ok, "mysql.instance.endpoint must be present")
+		assert.Equal(t, "localhost:3306", endpointVal.Str())
+
+		idVal, ok := attrs.Get("service.instance.id")
+		require.True(t, ok, "service.instance.id must be present when enabled")
+		_, err = uuid.Parse(idVal.Str())
+		assert.NoError(t, err, "service.instance.id must be a valid UUID, got: %s", idVal.Str())
+
+		// Verify determinism: re-derive the expected UUID from the same seed.
+		seed := resolveServiceInstanceSeed("localhost:3306", scraper.logger)
+		expected := uuid.NewSHA1(otelServiceInstanceNamespace, []byte(seed)).String()
+		assert.Equal(t, expected, idVal.Str(), "service.instance.id must be deterministic UUID v5")
+	}
+}
+
 func (*mockClient) explainQuery(_, _, _, _ string, _ *zap.Logger) string {
 	file, _ := os.ReadFile(filepath.Join("testdata", "obfuscate", "inputQueryPlan.json"))
 

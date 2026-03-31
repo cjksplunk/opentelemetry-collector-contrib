@@ -21,7 +21,7 @@ func TestResourceBuilder(t *testing.T) {
 
 			switch tt {
 			case "default":
-				assert.Equal(t, 2, res.Attributes().Len())
+				assert.Equal(t, 1, res.Attributes().Len())
 			case "all_set":
 				assert.Equal(t, 2, res.Attributes().Len())
 			case "none_set":
@@ -36,7 +36,7 @@ func TestResourceBuilder(t *testing.T) {
 				assert.Equal(t, "mysql.instance.endpoint-val", mysqlInstanceEndpointAttrVal.Str())
 			}
 			serviceInstanceIDAttrVal, ok := res.Attributes().Get("service.instance.id")
-			assert.True(t, ok)
+			assert.Equal(t, tt == "all_set", ok)
 			if ok {
 				assert.Equal(t, "service.instance.id-val", serviceInstanceIDAttrVal.Str())
 			}
