@@ -10,6 +10,7 @@ import (
 	_ "embed"
 	"fmt"
 	"strings"
+	"sync"
 	"text/template"
 	"time"
 
@@ -70,7 +71,9 @@ type mySQLClient struct {
 	statementEventsDigestTextLimit int
 	statementEventsLimit           int
 	statementEventsTimeLimit       time.Duration
-	cachedDBVersion                *dbVersion
+	dbVersionOnce                  sync.Once
+	dbVersionResult                dbVersion
+	dbVersionErr                   error
 }
 
 type ioWaitsStats struct {
@@ -309,48 +312,46 @@ func (c *mySQLClient) getVersion() (*version.Version, error) {
 	return version, err
 }
 
-// getDBVersion returns the cached database version, fetching it on first call.
-// It detects whether the server is MySQL or MariaDB by inspecting the raw
-// version string returned by SELECT VERSION().
+// getDBVersion returns the database version, fetching it on the first call and
+// caching the result for all subsequent calls. The fetch is protected by a
+// sync.Once so concurrent calls are safe and the query executes exactly once.
 func (c *mySQLClient) getDBVersion() (dbVersion, error) {
-	if c.cachedDBVersion != nil {
-		return *c.cachedDBVersion, nil
-	}
+	c.dbVersionOnce.Do(func() {
+		var versionStr string
+		if err := c.client.QueryRow("SELECT VERSION();").Scan(&versionStr); err != nil {
+			c.dbVersionErr = err
+			return
+		}
 
-	query := "SELECT VERSION();"
-	var versionStr string
-	if err := c.client.QueryRow(query).Scan(&versionStr); err != nil {
-		return dbVersion{}, err
-	}
+		product := dbProductMySQL
+		if strings.Contains(versionStr, "MariaDB") {
+			product = dbProductMariaDB
+		}
 
-	product := dbProductMySQL
-	if strings.Contains(versionStr, "MariaDB") {
-		product = dbProductMariaDB
-	}
+		// MariaDB reports versions like "10.11.6-MariaDB"; strip the suffix so
+		// the semver parser handles it cleanly.
+		semverStr := strings.SplitN(versionStr, "-", 2)[0]
+		v, err := version.NewVersion(semverStr)
+		if err != nil {
+			c.dbVersionErr = fmt.Errorf("failed to parse db version %q: %w", versionStr, err)
+			return
+		}
 
-	// MariaDB reports versions like "10.11.6-MariaDB"; strip the suffix so
-	// the semver parser handles it cleanly.
-	semverStr := strings.SplitN(versionStr, "-", 2)[0]
-	v, err := version.NewVersion(semverStr)
-	if err != nil {
-		return dbVersion{}, fmt.Errorf("failed to parse db version %q: %w", versionStr, err)
-	}
-
-	dv := dbVersion{product: product, version: v}
-	c.cachedDBVersion = &dv
-	return dv, nil
+		c.dbVersionResult = dbVersion{product: product, version: v}
+	})
+	return c.dbVersionResult, c.dbVersionErr
 }
 
 // getGlobalStats queries the db for global status metrics.
 func (c *mySQLClient) getGlobalStats() (map[string]string, error) {
 	q := "SHOW GLOBAL STATUS;"
-	return query(*c, q)
+	return query(c.client, q)
 }
 
 // getInnodbStats queries the db for innodb metrics.
 func (c *mySQLClient) getInnodbStats() (map[string]string, error) {
 	q := "SELECT name, count FROM information_schema.innodb_metrics WHERE name LIKE '%buffer_pool_size%';"
-	return query(*c, q)
+	return query(c.client, q)
 }
 
 // getTableStats queries the db for information_schema table size metrics.
@@ -933,8 +934,8 @@ func isQueryExplainable(query string) bool {
 	return false
 }
 
-func query(c mySQLClient, query string) (map[string]string, error) {
-	rows, err := c.client.Query(query)
+func query(db *sql.DB, query string) (map[string]string, error) {
+	rows, err := db.Query(query)
 	if err != nil {
 		return nil, err
 	}

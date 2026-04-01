@@ -186,12 +186,11 @@ func TestDBVersionCapabilities(t *testing.T) {
 // TestGetDBVersionCaching verifies that a cached version is returned on subsequent
 // calls and that no additional query is made.
 func TestGetDBVersionCaching(t *testing.T) {
-	// Pre-populate the cache on mySQLClient directly.
 	preloaded := dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "8.0.27")}
-	c := &mySQLClient{
-		cachedDBVersion: &preloaded,
-		// client field is nil — any real DB call would panic, proving the cache is hit.
-	}
+	c := &mySQLClient{}
+	// Prime the Once so getDBVersion returns the preloaded value without touching
+	// c.client (which is nil — a real DB call would panic, proving the cache is hit).
+	c.dbVersionOnce.Do(func() { c.dbVersionResult = preloaded })
 
 	got, err := c.getDBVersion()
 	require.NoError(t, err)
