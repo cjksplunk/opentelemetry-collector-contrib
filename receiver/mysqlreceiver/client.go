@@ -41,7 +41,7 @@ func (v dbVersion) isMySQL8Plus() bool {
 
 // supportsQuerySampleText reports whether the server's
 // performance_schema.events_statements_summary_by_digest table includes the
-// query_sample_text column (MySQL 8.0+).
+// query_sample_text column (MySQL 8.0.3+).
 func (v dbVersion) supportsQuerySampleText() bool {
 	return v.isMySQL8Plus()
 }

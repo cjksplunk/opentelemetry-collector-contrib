@@ -144,8 +144,8 @@ func TestDBVersionCapabilities(t *testing.T) {
 			wantSupportsQuerySampleText: true,
 		},
 		{
-			name:                        "MySQL 8.0.22 (minimum for query_sample_text)",
-			dv:                          dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "8.0.22")},
+			name:                        "MySQL 8.0.3 (minimum for query_sample_text)",
+			dv:                          dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "8.0.3")},
 			wantIsMySQL8Plus:            true,
 			wantSupportsQuerySampleText: true,
 		},
