@@ -302,6 +302,12 @@ type mockClient struct {
 	replicaStatusFile           string
 	querySamplesFile            string
 	topQueriesFile              string
+	// dbVersionOverride allows tests to simulate MySQL <8 or MariaDB.
+	// Nil means "MySQL 8.0.27" (default, preserves all existing test behavior).
+	dbVersionOverride *dbVersion
+	// explainQueryCallCount is incremented each time explainQuery is called.
+	// Tests that assert EXPLAIN was skipped can check this stays at zero.
+	explainQueryCallCount int
 }
 
 func readFile(fname string) (map[string]string, error) {
@@ -327,6 +333,14 @@ func (*mockClient) Connect() error {
 func (*mockClient) getVersion() (*version.Version, error) {
 	version, _ := version.NewVersion("8.0.27")
 	return version, nil
+}
+
+func (c *mockClient) getDBVersion() (dbVersion, error) {
+	if c.dbVersionOverride != nil {
+		return *c.dbVersionOverride, nil
+	}
+	v, _ := version.NewVersion("8.0.27")
+	return dbVersion{product: dbProductMySQL, version: v}, nil
 }
 
 func (c *mockClient) getGlobalStats() (map[string]string, error) {
@@ -628,7 +642,10 @@ func (c *mockClient) getTopQueries(uint64, uint64) ([]topQuery, error) {
 		q.digestText = text[2]
 		q.countStar, _ = parseInt(text[3])
 		q.sumTimerWaitInPicoSeconds, _ = parseInt(text[4])
-		q.querySampleText = text[5]
+		// 5-column fixtures (MySQL <8 / MariaDB fallback) omit querySampleText.
+		if len(text) > 5 {
+			q.querySampleText = text[5]
+		}
 
 		queries = append(queries, q)
 	}
@@ -636,7 +653,8 @@ func (c *mockClient) getTopQueries(uint64, uint64) ([]topQuery, error) {
 	return queries, nil
 }
 
-func (*mockClient) explainQuery(_, _, _, _ string, _ *zap.Logger) string {
+func (c *mockClient) explainQuery(_, _, _, _ string, _ *zap.Logger) string {
+	c.explainQueryCallCount++
 	file, _ := os.ReadFile(filepath.Join("testdata", "obfuscate", "inputQueryPlan.json"))
 
 	return string(file)
@@ -644,4 +662,133 @@ func (*mockClient) explainQuery(_, _, _, _ string, _ *zap.Logger) string {
 
 func (*mockClient) Close() error {
 	return nil
+}
+
+// mustDBVersion is a test helper that builds a dbVersion from a raw version
+// string, applying MariaDB detection the same way getDBVersion does.
+func mustDBVersion(t *testing.T, rawVersion string) dbVersion {
+	t.Helper()
+	product := dbProductMySQL
+	if strings.Contains(rawVersion, "MariaDB") {
+		product = dbProductMariaDB
+	}
+	semverStr := strings.SplitN(rawVersion, "-", 2)[0]
+	v, err := version.NewVersion(semverStr)
+	require.NoError(t, err)
+	return dbVersion{product: product, version: v}
+}
+
+// newTopQueryScraper creates a mySQLScraper configured for top-query tests.
+func newTopQueryScraper(t *testing.T, mc *mockClient) *mySQLScraper {
+	t.Helper()
+	cfg := createDefaultConfig().(*Config)
+	cfg.Username = "otel"
+	cfg.Password = "otel"
+	cfg.AddrConfig = confignet.AddrConfig{Endpoint: "localhost:3306"}
+	cfg.LogsBuilderConfig.Events.DbServerTopQuery.Enabled = true
+	s := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](100), newTTLCache[string](100, 0))
+	s.sqlclient = mc
+	return s
+}
+
+// TestScrapeTopQueriesNoSampleText verifies that when the mock reports MySQL 5.7
+// (which lacks query_sample_text), the top-query scrape returns rows with an
+// empty querySampleText and never calls explainQuery.
+func TestScrapeTopQueriesNoSampleText(t *testing.T) {
+	v57 := mustDBVersion(t, "5.7.38")
+	mc := &mockClient{
+		topQueriesFile:    "top_queries_no_sample_text",
+		dbVersionOverride: &v57,
+	}
+	s := newTopQueryScraper(t, mc)
+
+	// prime the cache so the diff is non-zero
+	s.cacheAndDiff("mysql", "c16f24f908846019a741db580f6545a5933e9435a7cf1579c50794a6ca287739", "count_star", 1)
+	s.cacheAndDiff("mysql", "c16f24f908846019a741db580f6545a5933e9435a7cf1579c50794a6ca287739", "sum_timer_wait", 1)
+
+	logs, err := s.scrapeTopQueryFunc(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, 1, logs.ResourceLogs().Len())
+
+	// EXPLAIN must not have been called — no sample text available.
+	assert.Equal(t, 0, mc.explainQueryCallCount, "explainQuery should not be called when querySampleText is empty")
+
+	// The emitted record should have an empty mysql.query_plan attribute.
+	lr := logs.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
+	planVal, hasPlan := lr.Attributes().Get("mysql.query_plan")
+	if hasPlan {
+		assert.Empty(t, planVal.Str(), "mysql.query_plan should be empty when sample text is unavailable")
+	}
+}
+
+// TestScrapeTopQueriesMariaDB verifies the same no-explain behavior for MariaDB.
+func TestScrapeTopQueriesMariaDB(t *testing.T) {
+	mariadb := mustDBVersion(t, "10.11.6-MariaDB")
+	mc := &mockClient{
+		topQueriesFile:    "top_queries_no_sample_text",
+		dbVersionOverride: &mariadb,
+	}
+	s := newTopQueryScraper(t, mc)
+
+	s.cacheAndDiff("mysql", "c16f24f908846019a741db580f6545a5933e9435a7cf1579c50794a6ca287739", "count_star", 1)
+	s.cacheAndDiff("mysql", "c16f24f908846019a741db580f6545a5933e9435a7cf1579c50794a6ca287739", "sum_timer_wait", 1)
+
+	logs, err := s.scrapeTopQueryFunc(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, 1, logs.ResourceLogs().Len())
+
+	assert.Equal(t, 0, mc.explainQueryCallCount, "explainQuery should not be called for MariaDB")
+}
+
+// TestScrapeQuerySamplesExplainPlan verifies that scrapeQuerySamples generates
+// an explain plan and sets mysql.query_plan on the emitted log record.
+func TestScrapeQuerySamplesExplainPlan(t *testing.T) {
+	mc := &mockClient{querySamplesFile: "query_samples"}
+	cfg := createDefaultConfig().(*Config)
+	cfg.Username = "otel"
+	cfg.Password = "otel"
+	cfg.AddrConfig = confignet.AddrConfig{Endpoint: "localhost:3306"}
+	cfg.LogsBuilderConfig.Events.DbServerQuerySample.Enabled = true
+	s := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](1), newTTLCache[string](100, 0))
+	s.sqlclient = mc
+
+	logs, err := s.scrapeQuerySampleFunc(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, 1, logs.ResourceLogs().Len())
+
+	lr := logs.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
+	planVal, hasPlan := lr.Attributes().Get("mysql.query_plan")
+	require.True(t, hasPlan, "mysql.query_plan attribute must be present")
+	assert.NotEmpty(t, planVal.Str(), "mysql.query_plan must not be empty when explain succeeds")
+
+	// explainQuery was called once (cache miss on first sample).
+	assert.Equal(t, 1, mc.explainQueryCallCount)
+}
+
+// TestSharedPlanCacheDeduplication verifies that when the shared plan cache already
+// contains a plan for a query's cache key, scrapeQuerySamples reuses it without
+// calling explainQuery.
+func TestSharedPlanCacheDeduplication(t *testing.T) {
+	sharedCache := newTTLCache[string](100, 0)
+
+	cfg := createDefaultConfig().(*Config)
+	cfg.Username = "otel"
+	cfg.Password = "otel"
+	cfg.AddrConfig = confignet.AddrConfig{Endpoint: "localhost:3306"}
+	cfg.LogsBuilderConfig.Events.DbServerQuerySample.Enabled = true
+
+	mc := &mockClient{querySamplesFile: "query_samples"}
+	s := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](1), sharedCache)
+	s.sqlclient = mc
+
+	// Pre-populate the shared cache for the key that query_samples.txt will produce:
+	// processlistDB="adventureworks", digest="aaaaaa" → key="adventureworks-aaaaaa".
+	// This simulates the top-query scraper having already fetched the plan.
+	sharedCache.Add("adventureworks-aaaaaa", `{"cached":true}`)
+
+	_, err := s.scrapeQuerySampleFunc(t.Context())
+	require.NoError(t, err)
+
+	assert.Equal(t, 0, mc.explainQueryCallCount,
+		"explainQuery must not be called when the plan is already in the shared cache")
 }

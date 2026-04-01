@@ -696,22 +696,26 @@ func (m *mySQLScraper) scrapeTopQueries(now pcommon.Timestamp, errs *scrapererro
 		}
 
 		var queryPlan string
-		var ok bool
-		if queryPlan, ok = m.queryPlanCache.Get(q.schemaName + "-" + q.digest); !ok {
-			// attempt to explain the query
-			queryPlan = m.sqlclient.explainQuery(q.digestText, q.querySampleText, q.schemaName, q.digest, m.logger)
-			if queryPlan == "" {
-				m.logger.Debug("query plan not available", zap.String("digest", q.digest), zap.String("digest_text", q.digestText))
-			} else {
-				// Obfuscate the plan
-				queryPlan, err = m.obfuscator.obfuscatePlan(queryPlan)
-				if err != nil {
-					// Obfuscation returned an error, log it. We cannot publish the unobfuscated plan as it may contain sensitive data
-					m.logger.Error("Failed to obfuscate query plan", zap.Error(err))
+		// querySampleText is "" when the fallback template was used (MySQL <8 / MariaDB).
+		// Skip EXPLAIN in that case — there is no sample statement to explain.
+		if q.querySampleText != "" {
+			var ok bool
+			if queryPlan, ok = m.queryPlanCache.Get(q.schemaName + "-" + q.digest); !ok {
+				// attempt to explain the query
+				queryPlan = m.sqlclient.explainQuery(q.digestText, q.querySampleText, q.schemaName, q.digest, m.logger)
+				if queryPlan == "" {
+					m.logger.Debug("query plan not available", zap.String("digest", q.digest), zap.String("digest_text", q.digestText))
+				} else {
+					// Obfuscate the plan
+					queryPlan, err = m.obfuscator.obfuscatePlan(queryPlan)
+					if err != nil {
+						// Obfuscation returned an error, log it. We cannot publish the unobfuscated plan as it may contain sensitive data
+						m.logger.Error("Failed to obfuscate query plan", zap.Error(err))
+					}
 				}
+				// add the obfuscated plan to the cache so we can use it again
+				m.queryPlanCache.Add(q.schemaName+"-"+q.digest, queryPlan)
 			}
-			// add the obfuscated plan to the cache so we can use it again
-			m.queryPlanCache.Add(q.schemaName+"-"+q.digest, queryPlan)
 		}
 
 		m.lb.RecordDbServerTopQueryEvent(
@@ -761,6 +765,25 @@ func (m *mySQLScraper) scrapeQuerySamples(_ context.Context, now pcommon.Timesta
 			m.logger.Error("Failed to obfuscate query", zap.Error(obfErr))
 		}
 
+		// Generate an explain plan for this sample, using the shared plan cache so
+		// that a plan already fetched by scrapeTopQueries() is reused here.
+		cacheKey := sample.processlistDB + "-" + sample.digest
+		var obfuscatedPlan string
+		if cached, ok := m.queryPlanCache.Get(cacheKey); ok {
+			obfuscatedPlan = cached
+		} else {
+			rawPlan := m.sqlclient.explainQuery(sample.sqlText, sample.sqlText, sample.processlistDB, sample.digest, m.logger)
+			if rawPlan != "" {
+				var planErr error
+				obfuscatedPlan, planErr = m.obfuscator.obfuscatePlan(rawPlan)
+				if planErr != nil {
+					m.logger.Error("Failed to obfuscate query plan", zap.Error(planErr))
+					obfuscatedPlan = ""
+				}
+			}
+			m.queryPlanCache.Add(cacheKey, obfuscatedPlan)
+		}
+
 		// Use context.Background() as the default (not the scraper ctx) so that log
 		// records carry empty trace/span IDs when no application traceparent is present.
 		// This prevents the collector's own internal scrape span from being stamped onto
@@ -786,6 +809,7 @@ func (m *mySQLScraper) scrapeQuerySamples(_ context.Context, now pcommon.Timesta
 			sample.processlistState,
 			obfuscatedQuery,
 			sample.digest,
+			obfuscatedPlan,
 			sample.digest,
 			sample.eventID,
 			sample.waitEvent,

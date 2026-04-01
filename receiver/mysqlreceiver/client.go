@@ -19,9 +19,37 @@ import (
 	"go.uber.org/zap"
 )
 
+// dbProduct identifies the database product (MySQL or MariaDB).
+type dbProduct int
+
+const (
+	dbProductMySQL   dbProduct = iota
+	dbProductMariaDB dbProduct = iota
+)
+
+// dbVersion holds the parsed database version and product identity.
+// Capability predicates keep version-specific branching out of callers.
+type dbVersion struct {
+	product dbProduct
+	version *version.Version
+}
+
+// isMySQL8Plus reports whether the server is MySQL 8.0 or later.
+func (v dbVersion) isMySQL8Plus() bool {
+	return v.product == dbProductMySQL && v.version.Segments()[0] >= 8
+}
+
+// supportsQuerySampleText reports whether the server's
+// performance_schema.events_statements_summary_by_digest table includes the
+// query_sample_text column (MySQL 8.0+).
+func (v dbVersion) supportsQuerySampleText() bool {
+	return v.isMySQL8Plus()
+}
+
 type client interface {
 	Connect() error
 	getVersion() (*version.Version, error)
+	getDBVersion() (dbVersion, error)
 	getGlobalStats() (map[string]string, error)
 	getInnodbStats() (map[string]string, error)
 	getTableStats() ([]tableStats, error)
@@ -42,6 +70,7 @@ type mySQLClient struct {
 	statementEventsDigestTextLimit int
 	statementEventsLimit           int
 	statementEventsTimeLimit       time.Duration
+	cachedDBVersion                *dbVersion
 }
 
 type ioWaitsStats struct {
@@ -278,6 +307,38 @@ func (c *mySQLClient) getVersion() (*version.Version, error) {
 	}
 	version, err := version.NewVersion(versionStr)
 	return version, err
+}
+
+// getDBVersion returns the cached database version, fetching it on first call.
+// It detects whether the server is MySQL or MariaDB by inspecting the raw
+// version string returned by SELECT VERSION().
+func (c *mySQLClient) getDBVersion() (dbVersion, error) {
+	if c.cachedDBVersion != nil {
+		return *c.cachedDBVersion, nil
+	}
+
+	query := "SELECT VERSION();"
+	var versionStr string
+	if err := c.client.QueryRow(query).Scan(&versionStr); err != nil {
+		return dbVersion{}, err
+	}
+
+	product := dbProductMySQL
+	if strings.Contains(versionStr, "MariaDB") {
+		product = dbProductMariaDB
+	}
+
+	// MariaDB reports versions like "10.11.6-MariaDB"; strip the suffix so
+	// the semver parser handles it cleanly.
+	semverStr := strings.SplitN(versionStr, "-", 2)[0]
+	v, err := version.NewVersion(semverStr)
+	if err != nil {
+		return dbVersion{}, fmt.Errorf("failed to parse db version %q: %w", versionStr, err)
+	}
+
+	dv := dbVersion{product: product, version: v}
+	c.cachedDBVersion = &dv
+	return dv, nil
 }
 
 // getGlobalStats queries the db for global status metrics.
@@ -707,15 +768,31 @@ func (c *mySQLClient) getReplicaStatusStats() ([]replicaStatusStats, error) {
 //go:embed templates/topQuery.tmpl
 var topQueryTemplate string
 
+//go:embed templates/topQueryNoSampleText.tmpl
+var topQueryNoSampleTextTemplate string
+
 func (c *mySQLClient) getTopQueries(topNValue, lookbackTime uint64) ([]topQuery, error) {
-	tmpl := template.Must(template.New("topQuery").Option("missingkey=error").Parse(topQueryTemplate))
+	dbVer, err := c.getDBVersion()
+	if err != nil {
+		return nil, fmt.Errorf("failed to detect db version: %w", err)
+	}
+
+	// Select the appropriate template based on version support.
+	// MySQL <8 and all MariaDB versions lack query_sample_text in
+	// events_statements_summary_by_digest, so we use the 5-column fallback.
+	tmplSrc := topQueryTemplate
+	if !dbVer.supportsQuerySampleText() {
+		tmplSrc = topQueryNoSampleTextTemplate
+	}
+
+	tmpl := template.Must(template.New("topQuery").Option("missingkey=error").Parse(tmplSrc))
 	buf := bytes.Buffer{}
 
-	if err := tmpl.Execute(&buf, map[string]any{
+	if tmplErr := tmpl.Execute(&buf, map[string]any{
 		"topNValue":    topNValue,
 		"lookbackTime": lookbackTime,
-	}); err != nil {
-		return nil, fmt.Errorf("failed to execute template: %w", err)
+	}); tmplErr != nil {
+		return nil, fmt.Errorf("failed to execute template: %w", tmplErr)
 	}
 
 	rows, err := c.client.Query(buf.String())
@@ -728,14 +805,25 @@ func (c *mySQLClient) getTopQueries(topNValue, lookbackTime uint64) ([]topQuery,
 	var topQueries []topQuery
 	for rows.Next() {
 		var tq topQuery
-		err := rows.Scan(
-			&tq.schemaName,
-			&tq.digest,
-			&tq.digestText,
-			&tq.countStar,
-			&tq.sumTimerWaitInPicoSeconds,
-			&tq.querySampleText,
-		)
+		if dbVer.supportsQuerySampleText() {
+			err = rows.Scan(
+				&tq.schemaName,
+				&tq.digest,
+				&tq.digestText,
+				&tq.countStar,
+				&tq.sumTimerWaitInPicoSeconds,
+				&tq.querySampleText,
+			)
+		} else {
+			// querySampleText stays "" — sentinel for "no sample available"
+			err = rows.Scan(
+				&tq.schemaName,
+				&tq.digest,
+				&tq.digestText,
+				&tq.countStar,
+				&tq.sumTimerWaitInPicoSeconds,
+			)
+		}
 		if err != nil {
 			return nil, err
 		}

@@ -6,7 +6,9 @@ package mysqlreceiver
 import (
 	"testing"
 
+	version "github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
@@ -116,4 +118,83 @@ func TestExplainQueryEarlyExits(t *testing.T) {
 		result := c.explainQuery("SHOW TABLES", "SHOW TABLES", "", "digest2", logger)
 		assert.Empty(t, result)
 	})
+}
+
+// mustParseVersion is a test helper that parses a semver string and fails the test if parsing fails.
+func mustParseVersion(t *testing.T, v string) *version.Version {
+	t.Helper()
+	parsed, err := version.NewVersion(v)
+	require.NoError(t, err)
+	return parsed
+}
+
+// TestDBVersionCapabilities tests the capability predicates on the dbVersion struct
+// for MySQL 8+, MySQL 5.7, MariaDB 10.x, and MariaDB 11.x.
+func TestDBVersionCapabilities(t *testing.T) {
+	tests := []struct {
+		name                        string
+		dv                          dbVersion
+		wantIsMySQL8Plus            bool
+		wantSupportsQuerySampleText bool
+	}{
+		{
+			name:                        "MySQL 8.0.27",
+			dv:                          dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "8.0.27")},
+			wantIsMySQL8Plus:            true,
+			wantSupportsQuerySampleText: true,
+		},
+		{
+			name:                        "MySQL 8.0.22 (minimum for query_sample_text)",
+			dv:                          dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "8.0.22")},
+			wantIsMySQL8Plus:            true,
+			wantSupportsQuerySampleText: true,
+		},
+		{
+			name:                        "MySQL 5.7.44",
+			dv:                          dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "5.7.44")},
+			wantIsMySQL8Plus:            false,
+			wantSupportsQuerySampleText: false,
+		},
+		{
+			name:                        "MySQL 5.6.51",
+			dv:                          dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "5.6.51")},
+			wantIsMySQL8Plus:            false,
+			wantSupportsQuerySampleText: false,
+		},
+		{
+			name:                        "MariaDB 10.11.6",
+			dv:                          dbVersion{product: dbProductMariaDB, version: mustParseVersion(t, "10.11.6")},
+			wantIsMySQL8Plus:            false,
+			wantSupportsQuerySampleText: false,
+		},
+		{
+			name:                        "MariaDB 11.4.2",
+			dv:                          dbVersion{product: dbProductMariaDB, version: mustParseVersion(t, "11.4.2")},
+			wantIsMySQL8Plus:            false,
+			wantSupportsQuerySampleText: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.wantIsMySQL8Plus, tt.dv.isMySQL8Plus(), "isMySQL8Plus()")
+			assert.Equal(t, tt.wantSupportsQuerySampleText, tt.dv.supportsQuerySampleText(), "supportsQuerySampleText()")
+		})
+	}
+}
+
+// TestGetDBVersionCaching verifies that a cached version is returned on subsequent
+// calls and that no additional query is made.
+func TestGetDBVersionCaching(t *testing.T) {
+	// Pre-populate the cache on mySQLClient directly.
+	preloaded := dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "8.0.27")}
+	c := &mySQLClient{
+		cachedDBVersion: &preloaded,
+		// client field is nil — any real DB call would panic, proving the cache is hit.
+	}
+
+	got, err := c.getDBVersion()
+	require.NoError(t, err)
+	assert.Equal(t, preloaded.product, got.product)
+	assert.Equal(t, preloaded.version.String(), got.version.String())
 }
