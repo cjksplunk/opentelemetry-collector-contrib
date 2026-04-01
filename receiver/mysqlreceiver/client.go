@@ -780,8 +780,9 @@ func (c *mySQLClient) getTopQueries(topNValue, lookbackTime uint64) ([]topQuery,
 	// Select the appropriate template based on version support.
 	// MySQL <8 and all MariaDB versions lack query_sample_text in
 	// events_statements_summary_by_digest, so we use the 5-column fallback.
+	usesSampleText := dbVer.supportsQuerySampleText()
 	tmplSrc := topQueryTemplate
-	if !dbVer.supportsQuerySampleText() {
+	if !usesSampleText {
 		tmplSrc = topQueryNoSampleTextTemplate
 	}
 
@@ -805,7 +806,7 @@ func (c *mySQLClient) getTopQueries(topNValue, lookbackTime uint64) ([]topQuery,
 	var topQueries []topQuery
 	for rows.Next() {
 		var tq topQuery
-		if dbVer.supportsQuerySampleText() {
+		if usesSampleText {
 			err = rows.Scan(
 				&tq.schemaName,
 				&tq.digest,

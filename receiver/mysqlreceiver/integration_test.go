@@ -184,7 +184,9 @@ func runPerfSchemaSetup(t *testing.T, cfg *Config) {
 		"UPDATE performance_schema.setup_instruments SET ENABLED='YES', TIMED='YES' WHERE NAME LIKE 'statement/sql/%'",
 	}
 	for _, s := range stmts {
-		_, _ = db.Exec(s)
+		if _, execErr := db.Exec(s); execErr != nil {
+			t.Logf("perf schema setup stmt failed (consumers may not be enabled): %v", execErr)
+		}
 	}
 }
 
@@ -281,7 +283,7 @@ func TestIntegrationLogScraper(t *testing.T) {
 				sharedPlanCache,
 			)
 			require.NoError(t, scraper.start(ctx, nil))
-			defer func() { require.NoError(t, scraper.shutdown(ctx)) }()
+			defer func() { assert.NoError(t, scraper.shutdown(ctx)) }()
 
 			// Verify performance_schema has digest rows for our workload queries.
 			{
@@ -358,7 +360,7 @@ func TestIntegrationLogScraper(t *testing.T) {
 				sharedPlanCache,
 			)
 			require.NoError(t, sampleScraper.start(ctx, nil))
-			defer func() { require.NoError(t, sampleScraper.shutdown(ctx)) }()
+			defer func() { assert.NoError(t, sampleScraper.shutdown(ctx)) }()
 
 			sampleLogs, err := sampleScraper.scrapeQuerySampleFunc(ctx)
 			require.NoError(t, err, "scrapeQuerySampleFunc must not return error")
