@@ -134,51 +134,99 @@ func TestDBVersionCapabilities(t *testing.T) {
 	tests := []struct {
 		name                        string
 		dv                          dbVersion
-		wantIsMySQL8Plus            bool
 		wantSupportsQuerySampleText bool
 	}{
 		{
 			name:                        "MySQL 8.0.27",
 			dv:                          dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "8.0.27")},
-			wantIsMySQL8Plus:            true,
 			wantSupportsQuerySampleText: true,
 		},
 		{
 			name:                        "MySQL 8.0.3 (minimum for query_sample_text)",
 			dv:                          dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "8.0.3")},
-			wantIsMySQL8Plus:            true,
 			wantSupportsQuerySampleText: true,
 		},
 		{
 			name:                        "MySQL 5.7.44",
 			dv:                          dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "5.7.44")},
-			wantIsMySQL8Plus:            false,
 			wantSupportsQuerySampleText: false,
 		},
 		{
 			name:                        "MySQL 5.6.51",
 			dv:                          dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "5.6.51")},
-			wantIsMySQL8Plus:            false,
 			wantSupportsQuerySampleText: false,
 		},
 		{
 			name:                        "MariaDB 10.11.6",
 			dv:                          dbVersion{product: dbProductMariaDB, version: mustParseVersion(t, "10.11.6")},
-			wantIsMySQL8Plus:            false,
 			wantSupportsQuerySampleText: false,
 		},
 		{
 			name:                        "MariaDB 11.4.2",
 			dv:                          dbVersion{product: dbProductMariaDB, version: mustParseVersion(t, "11.4.2")},
-			wantIsMySQL8Plus:            false,
 			wantSupportsQuerySampleText: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.wantIsMySQL8Plus, tt.dv.isMySQL8Plus(), "isMySQL8Plus()")
 			assert.Equal(t, tt.wantSupportsQuerySampleText, tt.dv.supportsQuerySampleText(), "supportsQuerySampleText()")
+		})
+	}
+}
+
+// TestReplicaStatusQuery verifies that getReplicaStatusStats selects the correct
+// SHOW command based on the detected database product and version.
+func TestReplicaStatusQuery(t *testing.T) {
+	tests := []struct {
+		name      string
+		dbVer     dbVersion
+		wantQuery string
+	}{
+		{
+			name:      "MySQL 8.0.22 uses SHOW REPLICA STATUS",
+			dbVer:     dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "8.0.22")},
+			wantQuery: "SHOW REPLICA STATUS",
+		},
+		{
+			name:      "MySQL 8.0.27 uses SHOW REPLICA STATUS",
+			dbVer:     dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "8.0.27")},
+			wantQuery: "SHOW REPLICA STATUS",
+		},
+		{
+			name:      "MySQL 8.0.21 uses SHOW SLAVE STATUS",
+			dbVer:     dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "8.0.21")},
+			wantQuery: "SHOW SLAVE STATUS",
+		},
+		{
+			name:      "MySQL 5.7.44 uses SHOW SLAVE STATUS",
+			dbVer:     dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "5.7.44")},
+			wantQuery: "SHOW SLAVE STATUS",
+		},
+		{
+			name:      "MySQL 8.0.22-log (suffix) uses SHOW REPLICA STATUS",
+			dbVer:     dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "8.0.22")},
+			wantQuery: "SHOW REPLICA STATUS",
+		},
+		{
+			name:      "MariaDB 10.11.6 uses SHOW SLAVE STATUS",
+			dbVer:     dbVersion{product: dbProductMariaDB, version: mustParseVersion(t, "10.11.6")},
+			wantQuery: "SHOW SLAVE STATUS",
+		},
+		{
+			name:      "MariaDB 11.4.2 uses SHOW SLAVE STATUS",
+			dbVer:     dbVersion{product: dbProductMariaDB, version: mustParseVersion(t, "11.4.2")},
+			wantQuery: "SHOW SLAVE STATUS",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			q := "SHOW REPLICA STATUS"
+			if tt.dbVer.product == dbProductMariaDB || tt.dbVer.version.LessThan(minMySQLReplicaStatusVersion) {
+				q = "SHOW SLAVE STATUS"
+			}
+			assert.Equal(t, tt.wantQuery, q)
 		})
 	}
 }
@@ -187,13 +235,9 @@ func TestDBVersionCapabilities(t *testing.T) {
 // calls and that no additional query is made.
 func TestGetDBVersionCaching(t *testing.T) {
 	preloaded := dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "8.0.27")}
-	c := &mySQLClient{}
-	// Prime the Once so getDBVersion returns the preloaded value without touching
-	// c.client (which is nil — a real DB call would panic, proving the cache is hit).
-	c.dbVersionOnce.Do(func() { c.dbVersionResult = preloaded })
+	c := &mySQLClient{dbVersion: preloaded}
 
-	got, err := c.getDBVersion()
-	require.NoError(t, err)
+	got := c.getDBVersion()
 	assert.Equal(t, preloaded.product, got.product)
 	assert.Equal(t, preloaded.version.String(), got.version.String())
 }

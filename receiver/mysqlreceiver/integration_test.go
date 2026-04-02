@@ -199,29 +199,32 @@ func runPerfSchemaSetup(t *testing.T, cfg *Config) {
 //   - scrapeQuerySampleFunc works on both
 //   - The shared plan cache is populated by scrapeTopQueryFunc so that
 //     scrapeQuerySampleFunc reuses cached plans without a second EXPLAIN call
+//
+// This test manages containers directly with testcontainers.GenericContainer rather
+// than using scraperinttest.NewIntegrationTest. scraperinttest is built around the
+// full scrape pipeline and validates metrics output; it provides no hook to access
+// a constructed client instance. Direct container management is required here because
+// the test calls scraper internals (scrapeTopQueryFunc, scrapeQuerySampleFunc,
+// sqlclient.getDBVersion) that are not reachable through the scraperinttest API.
 func TestIntegrationLogScraper(t *testing.T) {
 	testCases := []struct {
 		name              string
 		image             string
-		wantMySQL8Plus    bool
 		wantSampleTextCol bool
 	}{
 		{
 			name:              "MySQL-8.0.33-LogScraper",
 			image:             "mysql:8.0.33",
-			wantMySQL8Plus:    true,
 			wantSampleTextCol: true,
 		},
 		{
 			name:              "MariaDB-10.11-LogScraper",
 			image:             "mariadb:10.11",
-			wantMySQL8Plus:    false,
 			wantSampleTextCol: false,
 		},
 		{
 			name:              "MariaDB-11.4-LogScraper",
 			image:             "mariadb:11.4",
-			wantMySQL8Plus:    false,
 			wantSampleTextCol: false,
 		},
 	}
@@ -376,9 +379,7 @@ func TestIntegrationLogScraper(t *testing.T) {
 			t.Logf("scrapeQuerySampleFunc returned %d log records", sampleRecordCount)
 
 			// Verify version detection on the scraper's client.
-			dv, err := scraper.sqlclient.getDBVersion()
-			require.NoError(t, err)
-			assert.Equal(t, tc.wantMySQL8Plus, dv.isMySQL8Plus(), "isMySQL8Plus mismatch")
+			dv := scraper.sqlclient.getDBVersion()
 			assert.Equal(t, tc.wantSampleTextCol, dv.supportsQuerySampleText(), "supportsQuerySampleText mismatch")
 		})
 	}
@@ -388,19 +389,24 @@ func TestIntegrationLogScraper(t *testing.T) {
 // MySQL and MariaDB flavors, and that getTopQueries() selects the right query
 // template (6-column with query_sample_text for MySQL 8+, 5-column fallback
 // for MySQL <8 and all MariaDB versions).
+//
+// This test manages containers directly with testcontainers.GenericContainer rather
+// than using scraperinttest.NewIntegrationTest. scraperinttest validates metrics
+// output through the full scrape pipeline; it provides no way to obtain a client
+// instance for direct method calls. Direct container management is required here
+// because the test exercises client-level methods (getDBVersion, getTopQueries)
+// that are not reachable through the scraperinttest API.
 func TestVersionCompatibility(t *testing.T) {
 	testCases := []struct {
 		name              string
 		image             string
 		wantProduct       dbProduct
-		wantMySQL8Plus    bool
 		wantSampleTextCol bool // true ↔ 6-column template used
 	}{
 		{
 			name:              "MySQL 8.0.33",
 			image:             "mysql:8.0.33",
 			wantProduct:       dbProductMySQL,
-			wantMySQL8Plus:    true,
 			wantSampleTextCol: true,
 		},
 		{
@@ -410,21 +416,18 @@ func TestVersionCompatibility(t *testing.T) {
 			name:              "MySQL 5.7",
 			image:             "mysql:5.7",
 			wantProduct:       dbProductMySQL,
-			wantMySQL8Plus:    false,
 			wantSampleTextCol: false,
 		},
 		{
 			name:              "MariaDB 10.11",
 			image:             "mariadb:10.11",
 			wantProduct:       dbProductMariaDB,
-			wantMySQL8Plus:    false,
 			wantSampleTextCol: false,
 		},
 		{
 			name:              "MariaDB 11.4",
 			image:             "mariadb:11.4",
 			wantProduct:       dbProductMariaDB,
-			wantMySQL8Plus:    false,
 			wantSampleTextCol: false,
 		},
 	}
@@ -483,10 +486,8 @@ func TestVersionCompatibility(t *testing.T) {
 			defer c.Close()
 
 			// --- getDBVersion ---
-			dv, err := c.getDBVersion()
-			require.NoError(t, err)
+			dv := c.getDBVersion()
 			assert.Equal(t, tc.wantProduct, dv.product, "product mismatch")
-			assert.Equal(t, tc.wantMySQL8Plus, dv.isMySQL8Plus(), "isMySQL8Plus mismatch")
 			assert.Equal(t, tc.wantSampleTextCol, dv.supportsQuerySampleText(), "supportsQuerySampleText mismatch")
 
 			// --- getTopQueries: must succeed without error ---

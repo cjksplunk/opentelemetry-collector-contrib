@@ -10,7 +10,6 @@ import (
 	_ "embed"
 	"fmt"
 	"strings"
-	"sync"
 	"text/template"
 	"time"
 
@@ -28,6 +27,10 @@ const (
 	dbProductMariaDB dbProduct = iota
 )
 
+// minMySQLReplicaStatusVersion is the MySQL version at which SHOW REPLICA STATUS
+// replaced SHOW SLAVE STATUS. Initialized at package load; panics on bad literal.
+var minMySQLReplicaStatusVersion = version.Must(version.NewVersion("8.0.22"))
+
 // dbVersion holds the parsed database version and product identity.
 // Capability predicates keep version-specific branching out of callers.
 type dbVersion struct {
@@ -35,22 +38,21 @@ type dbVersion struct {
 	version *version.Version
 }
 
-// isMySQL8Plus reports whether the server is MySQL 8.0 or later.
-func (v dbVersion) isMySQL8Plus() bool {
-	return v.product == dbProductMySQL && v.version.Segments()[0] >= 8
-}
-
 // supportsQuerySampleText reports whether the server's
 // performance_schema.events_statements_summary_by_digest table includes the
-// query_sample_text column (MySQL 8.0.3+).
+// query_sample_text column (MySQL 8.x+; absent on MySQL <8 and all MariaDB versions).
+// Note: query_sample_text was technically introduced in MySQL 8.0.3, but MySQL 8.0.0–8.0.2
+// were pre-GA milestone releases; the check uses major version only.
 func (v dbVersion) supportsQuerySampleText() bool {
-	return v.isMySQL8Plus()
+	if v.version == nil {
+		return false
+	}
+	return v.product == dbProductMySQL && v.version.Segments()[0] >= 8
 }
 
 type client interface {
 	Connect() error
-	getVersion() (*version.Version, error)
-	getDBVersion() (dbVersion, error)
+	getDBVersion() dbVersion
 	getGlobalStats() (map[string]string, error)
 	getInnodbStats() (map[string]string, error)
 	getTableStats() ([]tableStats, error)
@@ -71,9 +73,7 @@ type mySQLClient struct {
 	statementEventsDigestTextLimit int
 	statementEventsLimit           int
 	statementEventsTimeLimit       time.Duration
-	dbVersionOnce                  sync.Once
-	dbVersionResult                dbVersion
-	dbVersionErr                   error
+	dbVersion                      dbVersion
 }
 
 type ioWaitsStats struct {
@@ -297,61 +297,56 @@ func (c *mySQLClient) Connect() error {
 		return fmt.Errorf("unable to connect to database: %w", err)
 	}
 	c.client = clientDB
+
+	// fetchDBVersion requires a live connection. If it fails (e.g. the server is
+	// not yet ready), leave dbVersion at its zero value so the scraper uses the
+	// safe fallback template. The error is not fatal — the scraper will surface
+	// connection errors on the first actual scrape.
+	if dbVer, verErr := c.fetchDBVersion(); verErr == nil {
+		c.dbVersion = dbVer
+	}
 	return nil
 }
 
-// getVersion queries the db for the version.
-func (c *mySQLClient) getVersion() (*version.Version, error) {
-	query := "SELECT VERSION();"
+// fetchDBVersion queries the database for its version string and parses it
+// into a dbVersion. Called once during Connect.
+func (c *mySQLClient) fetchDBVersion() (dbVersion, error) {
 	var versionStr string
-	err := c.client.QueryRow(query).Scan(&versionStr)
-	if err != nil {
-		return nil, err
+	if err := c.client.QueryRow("SELECT VERSION();").Scan(&versionStr); err != nil {
+		return dbVersion{}, err
 	}
-	version, err := version.NewVersion(versionStr)
-	return version, err
+
+	product := dbProductMySQL
+	if strings.Contains(versionStr, "MariaDB") {
+		product = dbProductMariaDB
+	}
+
+	// MariaDB reports versions like "10.11.6-MariaDB"; strip the suffix so
+	// the semver parser handles it cleanly.
+	semverStr := strings.SplitN(versionStr, "-", 2)[0]
+	v, err := version.NewVersion(semverStr)
+	if err != nil {
+		return dbVersion{}, fmt.Errorf("failed to parse db version %q: %w", versionStr, err)
+	}
+
+	return dbVersion{product: product, version: v}, nil
 }
 
-// getDBVersion returns the database version, fetching it on the first call and
-// caching the result for all subsequent calls. The fetch is protected by a
-// sync.Once so concurrent calls are safe and the query executes exactly once.
-func (c *mySQLClient) getDBVersion() (dbVersion, error) {
-	c.dbVersionOnce.Do(func() {
-		var versionStr string
-		if err := c.client.QueryRow("SELECT VERSION();").Scan(&versionStr); err != nil {
-			c.dbVersionErr = err
-			return
-		}
-
-		product := dbProductMySQL
-		if strings.Contains(versionStr, "MariaDB") {
-			product = dbProductMariaDB
-		}
-
-		// MariaDB reports versions like "10.11.6-MariaDB"; strip the suffix so
-		// the semver parser handles it cleanly.
-		semverStr := strings.SplitN(versionStr, "-", 2)[0]
-		v, err := version.NewVersion(semverStr)
-		if err != nil {
-			c.dbVersionErr = fmt.Errorf("failed to parse db version %q: %w", versionStr, err)
-			return
-		}
-
-		c.dbVersionResult = dbVersion{product: product, version: v}
-	})
-	return c.dbVersionResult, c.dbVersionErr
+// getDBVersion returns the cached database version established during Connect.
+func (c *mySQLClient) getDBVersion() dbVersion {
+	return c.dbVersion
 }
 
 // getGlobalStats queries the db for global status metrics.
 func (c *mySQLClient) getGlobalStats() (map[string]string, error) {
 	q := "SHOW GLOBAL STATUS;"
-	return query(c.client, q)
+	return query(*c, q)
 }
 
 // getInnodbStats queries the db for innodb metrics.
 func (c *mySQLClient) getInnodbStats() (map[string]string, error) {
 	q := "SELECT name, count FROM information_schema.innodb_metrics WHERE name LIKE '%buffer_pool_size%';"
-	return query(c.client, q)
+	return query(*c, q)
 }
 
 // getTableStats queries the db for information_schema table size metrics.
@@ -510,16 +505,10 @@ func (c *mySQLClient) getTableLockWaitEventStats() ([]tableLockWaitEventStats, e
 }
 
 func (c *mySQLClient) getReplicaStatusStats() ([]replicaStatusStats, error) {
-	mysqlVersion, err := c.getVersion()
-	if err != nil {
-		return nil, err
-	}
+	dbVer := c.getDBVersion()
 
 	query := "SHOW REPLICA STATUS"
-	minMysqlVersion, _ := version.NewVersion("8.0.22")
-	if strings.Contains(mysqlVersion.String(), "MariaDB") {
-		query = "SHOW SLAVE STATUS"
-	} else if mysqlVersion.LessThan(minMysqlVersion) {
+	if dbVer.product == dbProductMariaDB || dbVer.version.LessThan(minMySQLReplicaStatusVersion) {
 		query = "SHOW SLAVE STATUS"
 	}
 
@@ -773,10 +762,7 @@ var topQueryTemplate string
 var topQueryNoSampleTextTemplate string
 
 func (c *mySQLClient) getTopQueries(topNValue, lookbackTime uint64) ([]topQuery, error) {
-	dbVer, err := c.getDBVersion()
-	if err != nil {
-		return nil, fmt.Errorf("failed to detect db version: %w", err)
-	}
+	dbVer := c.getDBVersion()
 
 	// Select the appropriate template based on version support.
 	// MySQL <8 and all MariaDB versions lack query_sample_text in
@@ -787,10 +773,13 @@ func (c *mySQLClient) getTopQueries(topNValue, lookbackTime uint64) ([]topQuery,
 		tmplSrc = topQueryNoSampleTextTemplate
 	}
 
-	tmpl := template.Must(template.New("topQuery").Option("missingkey=error").Parse(tmplSrc))
+	tmpl, tmplErr := template.New("topQuery").Option("missingkey=error").Parse(tmplSrc)
+	if tmplErr != nil {
+		return nil, fmt.Errorf("failed to parse top query template: %w", tmplErr)
+	}
 	buf := bytes.Buffer{}
 
-	if tmplErr := tmpl.Execute(&buf, map[string]any{
+	if tmplErr = tmpl.Execute(&buf, map[string]any{
 		"topNValue":    topNValue,
 		"lookbackTime": lookbackTime,
 	}); tmplErr != nil {
@@ -934,8 +923,8 @@ func isQueryExplainable(query string) bool {
 	return false
 }
 
-func query(db *sql.DB, query string) (map[string]string, error) {
-	rows, err := db.Query(query)
+func query(c mySQLClient, query string) (map[string]string, error) {
+	rows, err := c.client.Query(query)
 	if err != nil {
 		return nil, err
 	}

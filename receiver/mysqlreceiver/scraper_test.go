@@ -330,17 +330,12 @@ func (*mockClient) Connect() error {
 	return nil
 }
 
-func (*mockClient) getVersion() (*version.Version, error) {
-	version, _ := version.NewVersion("8.0.27")
-	return version, nil
-}
-
-func (c *mockClient) getDBVersion() (dbVersion, error) {
+func (c *mockClient) getDBVersion() dbVersion {
 	if c.dbVersionOverride != nil {
-		return *c.dbVersionOverride, nil
+		return *c.dbVersionOverride
 	}
 	v, _ := version.NewVersion("8.0.27")
-	return dbVersion{product: dbProductMySQL, version: v}, nil
+	return dbVersion{product: dbProductMySQL, version: v}
 }
 
 func (c *mockClient) getGlobalStats() (map[string]string, error) {
@@ -740,8 +735,9 @@ func TestScrapeTopQueriesMariaDB(t *testing.T) {
 	assert.Equal(t, 0, mc.explainQueryCallCount, "explainQuery should not be called for MariaDB")
 }
 
-// TestScrapeQuerySamplesExplainPlan verifies that scrapeQuerySamples generates
-// an explain plan and sets mysql.query_plan on the emitted log record.
+// TestScrapeQuerySamplesExplainPlan verifies that scrapeQuerySamples emits the
+// correct attributes on query_sample events. mysql.query_plan belongs only on
+// top_query events; scrapeQuerySampleFunc never calls explainQuery.
 func TestScrapeQuerySamplesExplainPlan(t *testing.T) {
 	mc := &mockClient{querySamplesFile: "query_samples"}
 	cfg := createDefaultConfig().(*Config)
@@ -757,12 +753,18 @@ func TestScrapeQuerySamplesExplainPlan(t *testing.T) {
 	require.Equal(t, 1, logs.ResourceLogs().Len())
 
 	lr := logs.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
-	planVal, hasPlan := lr.Attributes().Get("mysql.query_plan")
-	require.True(t, hasPlan, "mysql.query_plan attribute must be present")
-	assert.NotEmpty(t, planVal.Str(), "mysql.query_plan must not be empty when explain succeeds")
 
-	// explainQuery was called once (cache miss on first sample).
-	assert.Equal(t, 1, mc.explainQueryCallCount)
+	// mysql.query_plan is a top_query attribute — must not appear on query_sample events.
+	_, hasPlan := lr.Attributes().Get("mysql.query_plan")
+	assert.False(t, hasPlan, "mysql.query_plan must not be present on query_sample events")
+
+	// mysql.query_plan.hash is valid on query_sample events.
+	hashVal, hasHash := lr.Attributes().Get("mysql.query_plan.hash")
+	assert.True(t, hasHash, "mysql.query_plan.hash must be present")
+	assert.NotEmpty(t, hashVal.Str(), "mysql.query_plan.hash must not be empty")
+
+	// scrapeQuerySampleFunc never calls explainQuery.
+	assert.Equal(t, 0, mc.explainQueryCallCount)
 }
 
 // TestSharedPlanCacheDeduplication verifies that when the shared plan cache already

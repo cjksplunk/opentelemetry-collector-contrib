@@ -709,11 +709,16 @@ func (m *mySQLScraper) scrapeTopQueries(now pcommon.Timestamp, errs *scrapererro
 					// Obfuscate the plan
 					queryPlan, err = m.obfuscator.obfuscatePlan(queryPlan)
 					if err != nil {
-						// Obfuscation returned an error, log it. We cannot publish the unobfuscated plan as it may contain sensitive data
+						// Obfuscation returned an error, log it. We cannot publish the unobfuscated plan as it may contain sensitive data.
+						// queryPlan is intentionally left as "" so the cache entry below suppresses
+						// repeated EXPLAIN attempts for this digest — EXPLAIN succeeds or fails
+						// consistently for a given query shape, so retrying every scrape cycle
+						// provides no benefit and adds unnecessary load.
 						m.logger.Error("Failed to obfuscate query plan", zap.Error(err))
 					}
 				}
-				// add the obfuscated plan to the cache so we can use it again
+				// Cache the result (including "" for unavailable/failed plans) so that
+				// scrapeQuerySamples can reuse it and EXPLAIN is not re-issued every cycle.
 				m.queryPlanCache.Add(q.schemaName+"-"+q.digest, queryPlan)
 			}
 		}
@@ -765,25 +770,6 @@ func (m *mySQLScraper) scrapeQuerySamples(_ context.Context, now pcommon.Timesta
 			m.logger.Error("Failed to obfuscate query", zap.Error(obfErr))
 		}
 
-		// Generate an explain plan for this sample, using the shared plan cache so
-		// that a plan already fetched by scrapeTopQueries() is reused here.
-		cacheKey := sample.processlistDB + "-" + sample.digest
-		var obfuscatedPlan string
-		if cached, ok := m.queryPlanCache.Get(cacheKey); ok {
-			obfuscatedPlan = cached
-		} else {
-			rawPlan := m.sqlclient.explainQuery(sample.sqlText, sample.sqlText, sample.processlistDB, sample.digest, m.logger)
-			if rawPlan != "" {
-				var planErr error
-				obfuscatedPlan, planErr = m.obfuscator.obfuscatePlan(rawPlan)
-				if planErr != nil {
-					m.logger.Error("Failed to obfuscate query plan", zap.Error(planErr))
-					obfuscatedPlan = ""
-				}
-			}
-			m.queryPlanCache.Add(cacheKey, obfuscatedPlan)
-		}
-
 		// Use context.Background() as the default (not the scraper ctx) so that log
 		// records carry empty trace/span IDs when no application traceparent is present.
 		// This prevents the collector's own internal scrape span from being stamped onto
@@ -809,7 +795,6 @@ func (m *mySQLScraper) scrapeQuerySamples(_ context.Context, now pcommon.Timesta
 			sample.processlistState,
 			obfuscatedQuery,
 			sample.digest,
-			obfuscatedPlan,
 			sample.digest,
 			sample.eventID,
 			sample.waitEvent,
