@@ -75,6 +75,23 @@ func (m *mySQLScraper) start(_ context.Context, _ component.Host) error {
 	}
 	m.sqlclient = sqlclient
 
+	dbVer := m.sqlclient.getDBVersion()
+	if dbVer.version == nil {
+		m.logger.Warn("database version could not be detected at startup; receiver will use MySQL <8/MariaDB fallback behavior for its entire lifetime",
+			zap.Bool("supports_query_sample_text", false),
+		)
+	} else {
+		product := "MySQL"
+		if dbVer.product == dbProductMariaDB {
+			product = "MariaDB"
+		}
+		m.logger.Info("detected database version",
+			zap.String("product", product),
+			zap.String("version", dbVer.version.String()),
+			zap.Bool("supports_query_sample_text", dbVer.supportsQuerySampleText()),
+		)
+	}
+
 	return nil
 }
 

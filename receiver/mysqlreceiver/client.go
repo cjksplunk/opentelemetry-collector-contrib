@@ -298,18 +298,18 @@ func (c *mySQLClient) Connect() error {
 	}
 	c.client = clientDB
 
-	// Ideally a version detection failure would be fatal here, since the scraper
-	// cannot pick the correct query template without knowing the server version.
-	// In practice, sql.Open is lazy — the underlying TCP connection is not
-	// established until the first query — so fetchDBVersion is the first real
-	// network call and will fail whenever no database is reachable. The component
-	// lifecycle test (generated_component_test.go) calls start() with the default
-	// config (127.0.0.1:3306) and no live database, so a hard failure here would
-	// break that test without any way to inject a mock client before Connect runs.
-	// Until the lifecycle test infrastructure supports pre-wiring a mock, we treat
-	// version detection failure as non-fatal: dbVersion stays at its zero value,
-	// which selects the safe fallback template (MySQL <8 / MariaDB behavior).
-	// Connection errors will still surface on the first actual scrape.
+	// Version detection runs exactly once during Connect and is non-fatal.
+	// If the query fails (e.g. no database reachable at startup) or the
+	// version string cannot be parsed, dbVersion stays at its zero value,
+	// which selects the safe fallback template (MySQL <8 / MariaDB behavior)
+	// for the entire lifetime of this receiver instance. Any connection error
+	// encountered here will cause the receiver to operate with incorrect
+	// version information; it will not be retried.
+	//
+	// This is intentional: sql.Open is lazy and the component lifecycle test
+	// calls start() against 127.0.0.1:3306 with no live database. A hard
+	// failure here would break that test with no way to inject a mock client
+	// before Connect runs. Real connection errors surface on the first scrape.
 	if dbVer, verErr := c.fetchDBVersion(); verErr == nil {
 		c.dbVersion = dbVer
 	}
