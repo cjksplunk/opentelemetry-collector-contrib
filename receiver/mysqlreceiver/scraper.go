@@ -79,6 +79,7 @@ func (m *mySQLScraper) start(_ context.Context, _ component.Host) error {
 	if dbVer.version == nil {
 		m.logger.Warn("database version could not be detected at startup; receiver will use MySQL <8/MariaDB fallback behavior for its entire lifetime",
 			zap.Bool("supports_query_sample_text", false),
+			zap.Bool("supports_user_variables_by_thread", false),
 		)
 	} else {
 		product := "MySQL"
@@ -89,6 +90,7 @@ func (m *mySQLScraper) start(_ context.Context, _ component.Host) error {
 			zap.String("product", product),
 			zap.String("version", dbVer.version.String()),
 			zap.Bool("supports_query_sample_text", dbVer.supportsQuerySampleText()),
+			zap.Bool("supports_user_variables_by_thread", dbVer.supportsUserVariablesByThread()),
 		)
 	}
 

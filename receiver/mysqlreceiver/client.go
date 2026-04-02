@@ -50,6 +50,30 @@ func (v dbVersion) supportsQuerySampleText() bool {
 	return v.product == dbProductMySQL && v.version.Segments()[0] >= 8
 }
 
+// minMySQLUserVarsVersion is the MySQL version at which
+// performance_schema.user_variables_by_thread was introduced.
+var minMySQLUserVarsVersion = version.Must(version.NewVersion("5.7.3"))
+
+// minMariaDBUserVarsVersion is the MariaDB version at which
+// performance_schema.user_variables_by_thread was introduced.
+var minMariaDBUserVarsVersion = version.Must(version.NewVersion("10.5.2"))
+
+// supportsUserVariablesByThread reports whether the server's performance_schema
+// includes the user_variables_by_thread table, which is required for traceparent
+// propagation in query sample collection.
+// Available on MySQL 5.7.3+ and MariaDB 10.5.2+.
+func (v dbVersion) supportsUserVariablesByThread() bool {
+	if v.version == nil {
+		return false
+	}
+	switch v.product {
+	case dbProductMariaDB:
+		return !v.version.LessThan(minMariaDBUserVarsVersion)
+	default: // dbProductMySQL
+		return !v.version.LessThan(minMySQLUserVarsVersion)
+	}
+}
+
 type client interface {
 	Connect() error
 	getDBVersion() dbVersion
@@ -838,8 +862,20 @@ func (c *mySQLClient) getTopQueries(topNValue, lookbackTime uint64) ([]topQuery,
 //go:embed templates/querySample.tmpl
 var querySampleTemplate string
 
+//go:embed templates/querySampleNoUserVars.tmpl
+var querySampleNoUserVarsTemplate string
+
 func (c *mySQLClient) getQuerySamples(limit uint64) ([]querySample, error) {
-	tmpl := template.Must(template.New("querySample").Option("missingkey=error").Parse(querySampleTemplate))
+	// Select the appropriate template based on version support.
+	// MySQL <5.7.3 and MariaDB <10.5.2 lack performance_schema.user_variables_by_thread,
+	// which is required for traceparent propagation. Use the fallback template for those
+	// versions, which omits the join and returns an empty traceparent.
+	tmplSrc := querySampleTemplate
+	if !c.getDBVersion().supportsUserVariablesByThread() {
+		tmplSrc = querySampleNoUserVarsTemplate
+	}
+
+	tmpl := template.Must(template.New("querySample").Option("missingkey=error").Parse(tmplSrc))
 	buf := bytes.Buffer{}
 
 	if err := tmpl.Execute(&buf, map[string]any{
