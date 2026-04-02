@@ -233,6 +233,38 @@ func TestReplicaStatusQuery(t *testing.T) {
 
 // TestGetDBVersionCaching verifies that a cached version is returned on subsequent
 // calls and that no additional query is made.
+func TestParseDBVersion(t *testing.T) {
+	tests := []struct {
+		input       string
+		wantProduct dbProduct
+		wantVersion string
+		wantErr     bool
+	}{
+		{"8.0.33", dbProductMySQL, "8.0.33", false},
+		{"5.7.44", dbProductMySQL, "5.7.44", false},
+		{"5.6.51", dbProductMySQL, "5.6.51", false},
+		// MySQL sometimes appends suffixes like "-log"
+		{"8.0.22-log", dbProductMySQL, "8.0.22", false},
+		// MariaDB includes "MariaDB" in the version string
+		{"10.11.6-MariaDB", dbProductMariaDB, "10.11.6", false},
+		{"11.4.2-MariaDB", dbProductMariaDB, "11.4.2", false},
+		// Malformed input
+		{"not-a-version", dbProductMySQL, "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got, err := parseDBVersion(tt.input)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantProduct, got.product)
+			assert.Equal(t, tt.wantVersion, got.version.String())
+		})
+	}
+}
+
 func TestGetDBVersionCaching(t *testing.T) {
 	preloaded := dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "8.0.27")}
 	c := &mySQLClient{dbVersion: preloaded}

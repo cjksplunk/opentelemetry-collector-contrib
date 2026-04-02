@@ -29,7 +29,8 @@ behavior accordingly.
 
 | Product | Versions | Query plans on `db.server.top_query` | Query plans on `db.server.query_sample` |
 |---------|----------|--------------------------------------|-----------------------------------------|
-| MySQL | 5.6, 5.7 | No | Yes |
+| MySQL | 5.6 | No | No |
+| MySQL | 5.7 | No | Yes |
 | MySQL | 8.0+ | Yes | Yes |
 | MariaDB | 10.6+ | No | Yes |
 | MariaDB | 11.x | No | Yes |

@@ -298,10 +298,18 @@ func (c *mySQLClient) Connect() error {
 	}
 	c.client = clientDB
 
-	// fetchDBVersion requires a live connection. If it fails (e.g. the server is
-	// not yet ready), leave dbVersion at its zero value so the scraper uses the
-	// safe fallback template. The error is not fatal — the scraper will surface
-	// connection errors on the first actual scrape.
+	// Ideally a version detection failure would be fatal here, since the scraper
+	// cannot pick the correct query template without knowing the server version.
+	// In practice, sql.Open is lazy — the underlying TCP connection is not
+	// established until the first query — so fetchDBVersion is the first real
+	// network call and will fail whenever no database is reachable. The component
+	// lifecycle test (generated_component_test.go) calls start() with the default
+	// config (127.0.0.1:3306) and no live database, so a hard failure here would
+	// break that test without any way to inject a mock client before Connect runs.
+	// Until the lifecycle test infrastructure supports pre-wiring a mock, we treat
+	// version detection failure as non-fatal: dbVersion stays at its zero value,
+	// which selects the safe fallback template (MySQL <8 / MariaDB behavior).
+	// Connection errors will still surface on the first actual scrape.
 	if dbVer, verErr := c.fetchDBVersion(); verErr == nil {
 		c.dbVersion = dbVer
 	}
@@ -315,14 +323,18 @@ func (c *mySQLClient) fetchDBVersion() (dbVersion, error) {
 	if err := c.client.QueryRow("SELECT VERSION();").Scan(&versionStr); err != nil {
 		return dbVersion{}, err
 	}
+	return parseDBVersion(versionStr)
+}
 
+// parseDBVersion parses a raw VERSION() string into a dbVersion.
+// MariaDB reports versions like "10.11.6-MariaDB"; the "-MariaDB" suffix is
+// stripped before semver parsing so the version library handles it cleanly.
+func parseDBVersion(versionStr string) (dbVersion, error) {
 	product := dbProductMySQL
 	if strings.Contains(versionStr, "MariaDB") {
 		product = dbProductMariaDB
 	}
 
-	// MariaDB reports versions like "10.11.6-MariaDB"; strip the suffix so
-	// the semver parser handles it cleanly.
 	semverStr := strings.SplitN(versionStr, "-", 2)[0]
 	v, err := version.NewVersion(semverStr)
 	if err != nil {
@@ -508,7 +520,7 @@ func (c *mySQLClient) getReplicaStatusStats() ([]replicaStatusStats, error) {
 	dbVer := c.getDBVersion()
 
 	query := "SHOW REPLICA STATUS"
-	if dbVer.product == dbProductMariaDB || dbVer.version.LessThan(minMySQLReplicaStatusVersion) {
+	if dbVer.product == dbProductMariaDB || dbVer.version == nil || dbVer.version.LessThan(minMySQLReplicaStatusVersion) {
 		query = "SHOW SLAVE STATUS"
 	}
 

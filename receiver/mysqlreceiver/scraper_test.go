@@ -767,10 +767,12 @@ func TestScrapeQuerySamplesExplainPlan(t *testing.T) {
 	assert.Equal(t, 0, mc.explainQueryCallCount)
 }
 
-// TestSharedPlanCacheDeduplication verifies that when the shared plan cache already
-// contains a plan for a query's cache key, scrapeQuerySamples reuses it without
-// calling explainQuery.
-func TestSharedPlanCacheDeduplication(t *testing.T) {
+// TestScrapeQuerySamplesNoExplain verifies that scrapeQuerySampleFunc never calls
+// explainQuery. Explain runs only in the top-query scraper; query_sample events
+// carry mysql.query_plan.hash (the digest) but not the plan itself.
+// The shared plan cache is passed through to prove that its presence does not
+// cause an unexpected explainQuery call.
+func TestScrapeQuerySamplesNoExplain(t *testing.T) {
 	sharedCache := newTTLCache[string](100, 0)
 
 	cfg := createDefaultConfig().(*Config)
@@ -783,14 +785,9 @@ func TestSharedPlanCacheDeduplication(t *testing.T) {
 	s := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](1), sharedCache)
 	s.sqlclient = mc
 
-	// Pre-populate the shared cache for the key that query_samples.txt will produce:
-	// processlistDB="adventureworks", digest="aaaaaa" → key="adventureworks-aaaaaa".
-	// This simulates the top-query scraper having already fetched the plan.
-	sharedCache.Add("adventureworks-aaaaaa", `{"cached":true}`)
-
 	_, err := s.scrapeQuerySampleFunc(t.Context())
 	require.NoError(t, err)
 
 	assert.Equal(t, 0, mc.explainQueryCallCount,
-		"explainQuery must not be called when the plan is already in the shared cache")
+		"scrapeQuerySampleFunc must never call explainQuery")
 }
