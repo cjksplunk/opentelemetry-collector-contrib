@@ -196,7 +196,8 @@ func runPerfSchemaSetup(t *testing.T, cfg *Config) {
 //   - getDBVersion() correctly identifies MySQL vs MariaDB
 //   - scrapeTopQueryFunc uses the 6-column template on MySQL 8+ (query_sample_text present)
 //     and the 5-column fallback on MariaDB (no query_sample_text column)
-//   - scrapeQuerySampleFunc works on both
+//   - scrapeQuerySampleFunc works on both, selecting the appropriate template based on
+//     whether user_variables_by_thread is available (MySQL 5.7.3+ / MariaDB 10.5.2+)
 //   - The shared plan cache is populated by scrapeTopQueryFunc so that
 //     scrapeQuerySampleFunc reuses cached plans without a second EXPLAIN call
 //
@@ -208,24 +209,36 @@ func runPerfSchemaSetup(t *testing.T, cfg *Config) {
 // sqlclient.getDBVersion) that are not reachable through the scraperinttest API.
 func TestIntegrationLogScraper(t *testing.T) {
 	testCases := []struct {
-		name              string
-		image             string
-		wantSampleTextCol bool
+		name                 string
+		image                string
+		wantSampleTextCol    bool
+		wantUserVarsByThread bool
 	}{
 		{
-			name:              "MySQL-8.0.33-LogScraper",
-			image:             "mysql:8.0.33",
-			wantSampleTextCol: true,
+			name:                 "MySQL-8.0.33-LogScraper",
+			image:                "mysql:8.0.33",
+			wantSampleTextCol:    true,
+			wantUserVarsByThread: true,
 		},
 		{
-			name:              "MariaDB-10.11-LogScraper",
-			image:             "mariadb:10.11",
-			wantSampleTextCol: false,
+			// mysql:5.7 has no official ARM64 image; this case is skipped on ARM hosts.
+			// It is the key boundary case for user_variables_by_thread (introduced 5.7.3).
+			name:                 "MySQL-5.7-LogScraper",
+			image:                "mysql:5.7",
+			wantSampleTextCol:    false,
+			wantUserVarsByThread: true,
 		},
 		{
-			name:              "MariaDB-11.4-LogScraper",
-			image:             "mariadb:11.4",
-			wantSampleTextCol: false,
+			name:                 "MariaDB-10.11-LogScraper",
+			image:                "mariadb:10.11",
+			wantSampleTextCol:    false,
+			wantUserVarsByThread: true,
+		},
+		{
+			name:                 "MariaDB-11.4-LogScraper",
+			image:                "mariadb:11.4",
+			wantSampleTextCol:    false,
+			wantUserVarsByThread: true,
 		},
 	}
 
@@ -381,54 +394,62 @@ func TestIntegrationLogScraper(t *testing.T) {
 			// Verify version detection on the scraper's client.
 			dv := scraper.sqlclient.getDBVersion()
 			assert.Equal(t, tc.wantSampleTextCol, dv.supportsQuerySampleText(), "supportsQuerySampleText mismatch")
+			assert.Equal(t, tc.wantUserVarsByThread, dv.supportsUserVariablesByThread(), "supportsUserVariablesByThread mismatch")
 		})
 	}
 }
 
 // TestVersionCompatibility verifies that getDBVersion() correctly identifies
-// MySQL and MariaDB flavors, and that getTopQueries() selects the right query
-// template (6-column with query_sample_text for MySQL 8+, 5-column fallback
-// for MySQL <8 and all MariaDB versions).
+// MySQL and MariaDB flavors, and that getTopQueries() and getQuerySamples() select
+// the right query templates:
+//   - getTopQueries: 6-column (query_sample_text) for MySQL 8+, 5-column fallback otherwise
+//   - getQuerySamples: user_variables_by_thread join for MySQL 5.7.3+ / MariaDB 10.5.2+,
+//     no-join fallback for older versions
 //
 // This test manages containers directly with testcontainers.GenericContainer rather
 // than using scraperinttest.NewIntegrationTest. scraperinttest validates metrics
 // output through the full scrape pipeline; it provides no way to obtain a client
 // instance for direct method calls. Direct container management is required here
-// because the test exercises client-level methods (getDBVersion, getTopQueries)
-// that are not reachable through the scraperinttest API.
+// because the test exercises client-level methods (getDBVersion, getTopQueries,
+// getQuerySamples) that are not reachable through the scraperinttest API.
 func TestVersionCompatibility(t *testing.T) {
 	testCases := []struct {
-		name              string
-		image             string
-		wantProduct       dbProduct
-		wantSampleTextCol bool // true ↔ 6-column template used
+		name                 string
+		image                string
+		wantProduct          dbProduct
+		wantSampleTextCol    bool // true ↔ 6-column top-query template used
+		wantUserVarsByThread bool // true ↔ user_variables_by_thread join used in query samples
 	}{
 		{
-			name:              "MySQL 8.0.33",
-			image:             "mysql:8.0.33",
-			wantProduct:       dbProductMySQL,
-			wantSampleTextCol: true,
+			name:                 "MySQL 8.0.33",
+			image:                "mysql:8.0.33",
+			wantProduct:          dbProductMySQL,
+			wantSampleTextCol:    true,
+			wantUserVarsByThread: true,
 		},
 		{
 			// mysql:5.7 has no official ARM64 image; this case is skipped on
-			// ARM hosts (e.g. Apple Silicon). The fallback template path is
-			// also exercised by the MariaDB cases below.
-			name:              "MySQL 5.7",
-			image:             "mysql:5.7",
-			wantProduct:       dbProductMySQL,
-			wantSampleTextCol: false,
+			// ARM hosts (e.g. Apple Silicon). MySQL 5.7 supports user_variables_by_thread
+			// (introduced 5.7.3) but not query_sample_text.
+			name:                 "MySQL 5.7",
+			image:                "mysql:5.7",
+			wantProduct:          dbProductMySQL,
+			wantSampleTextCol:    false,
+			wantUserVarsByThread: true,
 		},
 		{
-			name:              "MariaDB 10.11",
-			image:             "mariadb:10.11",
-			wantProduct:       dbProductMariaDB,
-			wantSampleTextCol: false,
+			name:                 "MariaDB 10.11",
+			image:                "mariadb:10.11",
+			wantProduct:          dbProductMariaDB,
+			wantSampleTextCol:    false,
+			wantUserVarsByThread: true,
 		},
 		{
-			name:              "MariaDB 11.4",
-			image:             "mariadb:11.4",
-			wantProduct:       dbProductMariaDB,
-			wantSampleTextCol: false,
+			name:                 "MariaDB 11.4",
+			image:                "mariadb:11.4",
+			wantProduct:          dbProductMariaDB,
+			wantSampleTextCol:    false,
+			wantUserVarsByThread: true,
 		},
 	}
 
@@ -489,6 +510,7 @@ func TestVersionCompatibility(t *testing.T) {
 			dv := c.getDBVersion()
 			assert.Equal(t, tc.wantProduct, dv.product, "product mismatch")
 			assert.Equal(t, tc.wantSampleTextCol, dv.supportsQuerySampleText(), "supportsQuerySampleText mismatch")
+			assert.Equal(t, tc.wantUserVarsByThread, dv.supportsUserVariablesByThread(), "supportsUserVariablesByThread mismatch")
 
 			// --- getTopQueries: must succeed without error ---
 			// No workload is running, so the result may be empty, but the query
@@ -511,6 +533,12 @@ func TestVersionCompatibility(t *testing.T) {
 						"querySampleText must be empty when using fallback template (digest: %s)", q.digest)
 				}
 			}
+
+			// --- getQuerySamples: must succeed without error ---
+			// Proves the correct template (with or without user_variables_by_thread join)
+			// was chosen for this server version. Result may be empty if no active sessions.
+			_, err = c.getQuerySamples(10)
+			require.NoError(t, err, "getQuerySamples should not fail (wrong template would cause 'unknown table' error)")
 		})
 	}
 }

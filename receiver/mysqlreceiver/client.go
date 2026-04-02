@@ -62,6 +62,9 @@ var minMariaDBUserVarsVersion = version.Must(version.NewVersion("10.5.2"))
 // includes the user_variables_by_thread table, which is required for traceparent
 // propagation in query sample collection.
 // Available on MySQL 5.7.3+ and MariaDB 10.5.2+.
+//
+// Note: support for MySQL 5.6 and 5.7 is included for completeness but should be
+// considered deprecated — both versions have passed their official end-of-life dates.
 func (v dbVersion) supportsUserVariablesByThread() bool {
 	if v.version == nil {
 		return false
