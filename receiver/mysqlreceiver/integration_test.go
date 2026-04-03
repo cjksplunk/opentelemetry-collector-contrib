@@ -516,7 +516,7 @@ func TestVersionCompatibility(t *testing.T) {
 			// No workload is running, so the result may be empty, but the query
 			// itself must execute without error — which proves the correct template
 			// (5-column vs 6-column) was chosen for this server version.
-			queries, err := c.getTopQueries(10, 60)
+			queries, err := c.getTopQueries(10, 60, dv.supportsQuerySampleText())
 			require.NoError(t, err, "getTopQueries should not fail (wrong template would cause 'unknown column' error)")
 
 			// For MySQL 8+, any top queries returned must have querySampleText
@@ -537,7 +537,7 @@ func TestVersionCompatibility(t *testing.T) {
 			// --- getQuerySamples: must succeed without error ---
 			// Proves the correct template (with or without user_variables_by_thread join)
 			// was chosen for this server version. Result may be empty if no active sessions.
-			_, err = c.getQuerySamples(10)
+			_, err = c.getQuerySamples(10, dv.supportsUserVariablesByThread())
 			require.NoError(t, err, "getQuerySamples should not fail (wrong template would cause 'unknown table' error)")
 		})
 	}

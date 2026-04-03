@@ -503,7 +503,7 @@ func (c *mockClient) getTableLockWaitEventStats() ([]tableLockWaitEventStats, er
 	return stats, nil
 }
 
-func (c *mockClient) getReplicaStatusStats() ([]replicaStatusStats, error) {
+func (c *mockClient) getReplicaStatusStats(_ bool) ([]replicaStatusStats, error) {
 	var stats []replicaStatusStats
 	file, err := os.Open(filepath.Join("testdata", "scraper", c.replicaStatusFile+".txt"))
 	if err != nil {
@@ -585,7 +585,7 @@ func (c *mockClient) getReplicaStatusStats() ([]replicaStatusStats, error) {
 }
 
 // Generate a function for getQuerySamples to read data from a static file
-func (c *mockClient) getQuerySamples(uint64) ([]querySample, error) {
+func (c *mockClient) getQuerySamples(uint64, bool) ([]querySample, error) {
 	var samples []querySample
 	file, err := os.Open(filepath.Join("testdata", "scraper", c.querySamplesFile+".txt"))
 	if err != nil {
@@ -619,7 +619,7 @@ func (c *mockClient) getQuerySamples(uint64) ([]querySample, error) {
 	return samples, nil
 }
 
-func (c *mockClient) getTopQueries(uint64, uint64) ([]topQuery, error) {
+func (c *mockClient) getTopQueries(uint64, uint64, bool) ([]topQuery, error) {
 	var queries []topQuery
 	file, err := os.Open(filepath.Join("testdata", "scraper", c.topQueriesFile+".txt"))
 	if err != nil {

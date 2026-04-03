@@ -77,6 +77,16 @@ func (v dbVersion) supportsUserVariablesByThread() bool {
 	}
 }
 
+// supportsReplicaStatus reports whether the server uses SHOW REPLICA STATUS
+// (MySQL 8.0.22+). Older MySQL versions and all MariaDB versions use the
+// deprecated SHOW SLAVE STATUS syntax.
+func (v dbVersion) supportsReplicaStatus() bool {
+	if v.version == nil {
+		return false
+	}
+	return v.product == dbProductMySQL && !v.version.LessThan(minMySQLReplicaStatusVersion)
+}
+
 type client interface {
 	Connect() error
 	getDBVersion() dbVersion
@@ -87,9 +97,14 @@ type client interface {
 	getIndexIoWaitsStats() ([]indexIoWaitsStats, error)
 	getStatementEventsStats() ([]statementEventStats, error)
 	getTableLockWaitEventStats() ([]tableLockWaitEventStats, error)
-	getReplicaStatusStats() ([]replicaStatusStats, error)
-	getQuerySamples(uint64) ([]querySample, error)
-	getTopQueries(uint64, uint64) ([]topQuery, error)
+	// supportsReplicaStatus controls whether SHOW REPLICA STATUS or the
+	// deprecated SHOW SLAVE STATUS is used.
+	getReplicaStatusStats(supportsReplicaStatus bool) ([]replicaStatusStats, error)
+	// supportsSampleText controls top-query template selection (MySQL 8+ vs fallback).
+	getTopQueries(topN, lookback uint64, supportsSampleText bool) ([]topQuery, error)
+	// supportsUserVarsByThread controls query-sample template selection for
+	// traceparent propagation (MySQL 5.7.3+ / MariaDB 10.5.2+ vs fallback).
+	getQuerySamples(limit uint64, supportsUserVarsByThread bool) ([]querySample, error)
 	explainQuery(digestText, sampleStatement, schema, digest string, logger *zap.Logger) string
 	Close() error
 }
@@ -543,11 +558,9 @@ func (c *mySQLClient) getTableLockWaitEventStats() ([]tableLockWaitEventStats, e
 	return stats, nil
 }
 
-func (c *mySQLClient) getReplicaStatusStats() ([]replicaStatusStats, error) {
-	dbVer := c.getDBVersion()
-
+func (c *mySQLClient) getReplicaStatusStats(supportsReplicaStatus bool) ([]replicaStatusStats, error) {
 	query := "SHOW REPLICA STATUS"
-	if dbVer.product == dbProductMariaDB || dbVer.version == nil || dbVer.version.LessThan(minMySQLReplicaStatusVersion) {
+	if !supportsReplicaStatus {
 		query = "SHOW SLAVE STATUS"
 	}
 
@@ -800,15 +813,12 @@ var topQueryTemplate string
 //go:embed templates/topQueryNoSampleText.tmpl
 var topQueryNoSampleTextTemplate string
 
-func (c *mySQLClient) getTopQueries(topNValue, lookbackTime uint64) ([]topQuery, error) {
-	dbVer := c.getDBVersion()
-
+func (c *mySQLClient) getTopQueries(topNValue, lookbackTime uint64, supportsSampleText bool) ([]topQuery, error) {
 	// Select the appropriate template based on version support.
 	// MySQL <8 and all MariaDB versions lack query_sample_text in
 	// events_statements_summary_by_digest, so we use the 5-column fallback.
-	usesSampleText := dbVer.supportsQuerySampleText()
 	tmplSrc := topQueryTemplate
-	if !usesSampleText {
+	if !supportsSampleText {
 		tmplSrc = topQueryNoSampleTextTemplate
 	}
 
@@ -835,7 +845,7 @@ func (c *mySQLClient) getTopQueries(topNValue, lookbackTime uint64) ([]topQuery,
 	var topQueries []topQuery
 	for rows.Next() {
 		var tq topQuery
-		if usesSampleText {
+		if supportsSampleText {
 			err = rows.Scan(
 				&tq.schemaName,
 				&tq.digest,
@@ -868,13 +878,13 @@ var querySampleTemplate string
 //go:embed templates/querySampleNoUserVars.tmpl
 var querySampleNoUserVarsTemplate string
 
-func (c *mySQLClient) getQuerySamples(limit uint64) ([]querySample, error) {
+func (c *mySQLClient) getQuerySamples(limit uint64, supportsUserVarsByThread bool) ([]querySample, error) {
 	// Select the appropriate template based on version support.
 	// MySQL <5.7.3 and MariaDB <10.5.2 lack performance_schema.user_variables_by_thread,
 	// which is required for traceparent propagation. Use the fallback template for those
 	// versions, which omits the join and returns an empty traceparent.
 	tmplSrc := querySampleTemplate
-	if !c.getDBVersion().supportsUserVariablesByThread() {
+	if !supportsUserVarsByThread {
 		tmplSrc = querySampleNoUserVarsTemplate
 	}
 
