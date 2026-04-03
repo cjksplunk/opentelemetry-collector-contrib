@@ -879,3 +879,83 @@ func TestLogDetectedVersion(t *testing.T) {
 		})
 	}
 }
+
+// TestSetScopeAttributes verifies that setScopeAttributes stamps db.version and
+// db.product onto every ScopeLogs scope, and that an unknown version is a no-op.
+func TestSetScopeAttributes(t *testing.T) {
+	makeLogsWithScopes := func(n int) plog.Logs {
+		logs := plog.NewLogs()
+		rl := logs.ResourceLogs().AppendEmpty()
+		for range n {
+			rl.ScopeLogs().AppendEmpty()
+		}
+		return logs
+	}
+
+	t.Run("MySQL 8 sets db.version and db.product", func(t *testing.T) {
+		s := &mySQLScraper{detectedVersion: mustDBVersion(t, "8.0.27")}
+		logs := makeLogsWithScopes(2)
+		s.setScopeAttributes(logs)
+
+		sls := logs.ResourceLogs().At(0).ScopeLogs()
+		for i := 0; i < sls.Len(); i++ {
+			attrs := sls.At(i).Scope().Attributes()
+			ver, ok := attrs.Get("db.version")
+			require.True(t, ok)
+			assert.Equal(t, "8.0.27", ver.Str())
+			prod, ok := attrs.Get("db.product")
+			require.True(t, ok)
+			assert.Equal(t, "MySQL", prod.Str())
+		}
+	})
+
+	t.Run("MariaDB sets db.product=MariaDB", func(t *testing.T) {
+		s := &mySQLScraper{detectedVersion: mustDBVersion(t, "10.11.6-MariaDB")}
+		logs := makeLogsWithScopes(1)
+		s.setScopeAttributes(logs)
+
+		attrs := logs.ResourceLogs().At(0).ScopeLogs().At(0).Scope().Attributes()
+		prod, ok := attrs.Get("db.product")
+		require.True(t, ok)
+		assert.Equal(t, "MariaDB", prod.Str())
+	})
+
+	t.Run("unknown version is a no-op", func(t *testing.T) {
+		s := &mySQLScraper{} // detectedVersion is zero value
+		logs := makeLogsWithScopes(1)
+		s.setScopeAttributes(logs)
+
+		attrs := logs.ResourceLogs().At(0).ScopeLogs().At(0).Scope().Attributes()
+		assert.Equal(t, 0, attrs.Len(), "no attributes should be set when version is unknown")
+	})
+}
+
+// TestScrapeTopQueryFuncScopeAttributes verifies that scrapeTopQueryFunc stamps
+// scope attributes onto emitted logs when a version has been detected.
+func TestScrapeTopQueryFuncScopeAttributes(t *testing.T) {
+	v8 := mustDBVersion(t, "8.0.27")
+	mc := &mockClient{
+		topQueriesFile:    "top_queries",
+		dbVersionOverride: &v8,
+	}
+	s := newTopQueryScraper(t, mc)
+	s.detectedVersion = v8
+
+	s.cacheAndDiff("mysql", "c16f24f908846019a741db580f6545a5933e9435a7cf1579c50794a6ca287739", "count_star", 1)
+	s.cacheAndDiff("mysql", "c16f24f908846019a741db580f6545a5933e9435a7cf1579c50794a6ca287739", "sum_timer_wait", 1)
+
+	logs, err := s.scrapeTopQueryFunc(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, 1, logs.ResourceLogs().Len())
+
+	sls := logs.ResourceLogs().At(0).ScopeLogs()
+	for i := 0; i < sls.Len(); i++ {
+		attrs := sls.At(i).Scope().Attributes()
+		ver, ok := attrs.Get("db.version")
+		assert.True(t, ok, "db.version scope attribute missing")
+		assert.Equal(t, "8.0.27", ver.Str())
+		prod, ok := attrs.Get("db.product")
+		assert.True(t, ok, "db.product scope attribute missing")
+		assert.Equal(t, "MySQL", prod.Str())
+	}
+}
