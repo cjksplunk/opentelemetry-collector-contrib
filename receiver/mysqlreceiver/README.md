@@ -27,13 +27,13 @@ behavior accordingly.
 
 ### Supported database versions
 
-| Product | Versions | Query plans on `db.server.top_query` | Query plans on `db.server.query_sample` |
-|---------|----------|--------------------------------------|-----------------------------------------|
-| MySQL | 5.6 | No | No |
-| MySQL | 5.7 | No | Yes |
-| MySQL | 8.0+ | Yes | Yes |
-| MariaDB | 10.6+ | No | Yes |
-| MariaDB | 11.x | No | Yes |
+| Product | Versions | Query plans on `db.server.top_query` |
+|---------|----------|--------------------------------------|
+| MySQL | 5.6 | No |
+| MySQL | 5.7 | No |
+| MySQL | 8.0+ | Yes |
+| MariaDB | 10.6+ | No |
+| MariaDB | 11.x | No |
 
 Collecting most metrics requires the ability to execute `SHOW GLOBAL STATUS`.
 
@@ -131,8 +131,7 @@ actual statement that was run for each digest, so the top-query scraper can call
 without needing to catch the query in flight.
 
 MariaDB and MySQL 5.x do not have `query_sample_text`, so the top-query scraper has nothing
-to EXPLAIN. Query plans are still available on `db.server.query_sample` events, where the
-scraper pulls live SQL directly from `events_statements_current`.
+to EXPLAIN. Query plans are not available for these versions.
 
 If a statement is truncated (the stored text ends with `...`), the receiver skips EXPLAIN for
 that statement on all versions. Truncation is controlled by

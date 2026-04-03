@@ -2,7 +2,7 @@ change_type: enhancement
 
 component: receiver/mysqlreceiver
 
-note: Add MySQL <8 and MariaDB compatibility for top-query collection by detecting the server version and using a fallback query template that omits the `query_sample_text` column, which does not exist in those versions. Explain plans are now also generated for query samples and included as the `mysql.query_plan` attribute. A shared plan cache prevents duplicate EXPLAIN calls between the top-query and query-sample scrapers.
+note: Add MySQL <8 and MariaDB compatibility for top-query collection by detecting the server version and using a fallback query template that omits the `query_sample_text` column, which does not exist in those versions. A shared plan cache prevents duplicate EXPLAIN calls across scrape cycles.
 
 issues: [47302]
 
