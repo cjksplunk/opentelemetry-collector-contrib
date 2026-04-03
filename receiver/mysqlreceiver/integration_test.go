@@ -22,6 +22,9 @@ import (
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/receiver/receivertest"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal/scraperinttest"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest/pmetrictest"
@@ -213,12 +216,16 @@ func TestIntegrationLogScraper(t *testing.T) {
 		image                string
 		wantSampleTextCol    bool
 		wantUserVarsByThread bool
+		wantEOLWarn          bool   // true ↔ logDetectedVersion should emit an EOL warning
+		wantProduct          string // expected db.product scope attribute value
 	}{
 		{
 			name:                 "MySQL-8.0.33-LogScraper",
 			image:                "mysql:8.0.33",
 			wantSampleTextCol:    true,
 			wantUserVarsByThread: true,
+			wantEOLWarn:          false,
+			wantProduct:          "MySQL",
 		},
 		{
 			// mysql:5.7 has no official ARM64 image; this case is skipped on ARM hosts.
@@ -227,18 +234,24 @@ func TestIntegrationLogScraper(t *testing.T) {
 			image:                "mysql:5.7",
 			wantSampleTextCol:    false,
 			wantUserVarsByThread: true,
+			wantEOLWarn:          true,
+			wantProduct:          "MySQL",
 		},
 		{
 			name:                 "MariaDB-10.11-LogScraper",
 			image:                "mariadb:10.11",
 			wantSampleTextCol:    false,
 			wantUserVarsByThread: true,
+			wantEOLWarn:          false,
+			wantProduct:          "MariaDB",
 		},
 		{
 			name:                 "MariaDB-11.4-LogScraper",
 			image:                "mariadb:11.4",
 			wantSampleTextCol:    false,
 			wantUserVarsByThread: true,
+			wantEOLWarn:          false,
+			wantProduct:          "MariaDB",
 		},
 	}
 
@@ -291,6 +304,8 @@ func TestIntegrationLogScraper(t *testing.T) {
 			// Build a shared plan cache (TTL=0 in tests to avoid goroutine leak).
 			sharedPlanCache := newTTLCache[string](cfg.TopQueryCollection.QueryPlanCacheSize, 0)
 
+			// Use an observer logger so we can assert logDetectedVersion output.
+			observerCore, loggedEntries := observer.New(zapcore.WarnLevel)
 			settings := receivertest.NewNopSettings(metadata.Type)
 			scraper := newMySQLScraper(
 				settings,
@@ -298,8 +313,19 @@ func TestIntegrationLogScraper(t *testing.T) {
 				newCache[int64](int(cfg.TopQueryCollection.MaxQuerySampleCount*2*2)),
 				sharedPlanCache,
 			)
+			scraper.logger = zap.New(observerCore)
 			require.NoError(t, scraper.start(ctx, nil))
 			defer func() { assert.NoError(t, scraper.shutdown(ctx)) }()
+
+			// Verify logDetectedVersion EOL warning.
+			eolEntries := loggedEntries.FilterMessage(
+				"detected MySQL version is past end-of-life and may not be supported by this receiver in a future release",
+			)
+			if tc.wantEOLWarn {
+				assert.Equal(t, 1, eolEntries.Len(), "expected EOL warn log entry for %s", tc.image)
+			} else {
+				assert.Equal(t, 0, eolEntries.Len(), "unexpected EOL warn log entry for %s", tc.image)
+			}
 
 			// Verify performance_schema has digest rows for our workload queries.
 			{
@@ -367,6 +393,21 @@ func TestIntegrationLogScraper(t *testing.T) {
 			}
 			t.Logf("scrapeTopQueryFunc returned %d log records", topRecordCount)
 
+			// Verify scope attributes on top-query logs.
+			// setScopeAttributes is called after every Emit, so db.version and
+			// db.product must appear on every ScopeLogs scope.
+			for i := range topLogs.ResourceLogs().Len() {
+				sls := topLogs.ResourceLogs().At(i).ScopeLogs()
+				for j := range sls.Len() {
+					attrs := sls.At(j).Scope().Attributes()
+					_, hasVersion := attrs.Get("db.version")
+					assert.True(t, hasVersion, "db.version scope attribute missing on top-query ResourceLogs[%d].ScopeLogs[%d]", i, j)
+					prod, hasProd := attrs.Get("db.product")
+					assert.True(t, hasProd, "db.product scope attribute missing on top-query ResourceLogs[%d].ScopeLogs[%d]", i, j)
+					assert.Equal(t, tc.wantProduct, prod.Str(), "db.product mismatch on ResourceLogs[%d].ScopeLogs[%d]", i, j)
+				}
+			}
+
 			// --- scrapeQuerySampleFunc ---
 			// Use a separate scraper sharing the same plan cache to prove reuse.
 			sampleScraper := newMySQLScraper(
@@ -390,6 +431,19 @@ func TestIntegrationLogScraper(t *testing.T) {
 				}
 			}
 			t.Logf("scrapeQuerySampleFunc returned %d log records", sampleRecordCount)
+
+			// Verify scope attributes on query-sample logs.
+			for i := range sampleLogs.ResourceLogs().Len() {
+				sls := sampleLogs.ResourceLogs().At(i).ScopeLogs()
+				for j := range sls.Len() {
+					attrs := sls.At(j).Scope().Attributes()
+					_, hasVersion := attrs.Get("db.version")
+					assert.True(t, hasVersion, "db.version scope attribute missing on sample ResourceLogs[%d].ScopeLogs[%d]", i, j)
+					prod, hasProd := attrs.Get("db.product")
+					assert.True(t, hasProd, "db.product scope attribute missing on sample ResourceLogs[%d].ScopeLogs[%d]", i, j)
+					assert.Equal(t, tc.wantProduct, prod.Str(), "db.product mismatch on ResourceLogs[%d].ScopeLogs[%d]", i, j)
+				}
+			}
 
 			// Verify version detection on the scraper's client.
 			dv := scraper.sqlclient.getDBVersion()
@@ -419,6 +473,7 @@ func TestVersionCompatibility(t *testing.T) {
 		wantProduct          dbProduct
 		wantSampleTextCol    bool // true ↔ 6-column top-query template used
 		wantUserVarsByThread bool // true ↔ user_variables_by_thread join used in query samples
+		wantReplicaStatus    bool // true ↔ SHOW REPLICA STATUS used instead of SHOW SLAVE STATUS
 	}{
 		{
 			name:                 "MySQL 8.0.33",
@@ -426,6 +481,7 @@ func TestVersionCompatibility(t *testing.T) {
 			wantProduct:          dbProductMySQL,
 			wantSampleTextCol:    true,
 			wantUserVarsByThread: true,
+			wantReplicaStatus:    true,
 		},
 		{
 			// mysql:5.7 has no official ARM64 image; this case is skipped on
@@ -436,6 +492,7 @@ func TestVersionCompatibility(t *testing.T) {
 			wantProduct:          dbProductMySQL,
 			wantSampleTextCol:    false,
 			wantUserVarsByThread: true,
+			wantReplicaStatus:    false,
 		},
 		{
 			name:                 "MariaDB 10.11",
@@ -443,6 +500,7 @@ func TestVersionCompatibility(t *testing.T) {
 			wantProduct:          dbProductMariaDB,
 			wantSampleTextCol:    false,
 			wantUserVarsByThread: true,
+			wantReplicaStatus:    false,
 		},
 		{
 			name:                 "MariaDB 11.4",
@@ -450,6 +508,7 @@ func TestVersionCompatibility(t *testing.T) {
 			wantProduct:          dbProductMariaDB,
 			wantSampleTextCol:    false,
 			wantUserVarsByThread: true,
+			wantReplicaStatus:    false,
 		},
 	}
 
@@ -511,6 +570,7 @@ func TestVersionCompatibility(t *testing.T) {
 			assert.Equal(t, tc.wantProduct, dv.product, "product mismatch")
 			assert.Equal(t, tc.wantSampleTextCol, dv.supportsQuerySampleText(), "supportsQuerySampleText mismatch")
 			assert.Equal(t, tc.wantUserVarsByThread, dv.supportsUserVariablesByThread(), "supportsUserVariablesByThread mismatch")
+			assert.Equal(t, tc.wantReplicaStatus, dv.supportsReplicaStatus(), "supportsReplicaStatus mismatch")
 
 			// --- getTopQueries: must succeed without error ---
 			// No workload is running, so the result may be empty, but the query
@@ -539,6 +599,13 @@ func TestVersionCompatibility(t *testing.T) {
 			// was chosen for this server version. Result may be empty if no active sessions.
 			_, err = c.getQuerySamples(10, dv.supportsUserVariablesByThread())
 			require.NoError(t, err, "getQuerySamples should not fail (wrong template would cause 'unknown table' error)")
+
+			// --- getReplicaStatusStats: must succeed without error ---
+			// Proves the correct SHOW REPLICA STATUS vs SHOW SLAVE STATUS template was
+			// chosen. The server is not configured as a replica so the result will be
+			// empty, but the query itself must execute without error.
+			_, err = c.getReplicaStatusStats(dv.supportsReplicaStatus())
+			require.NoError(t, err, "getReplicaStatusStats should not fail (wrong command would cause syntax error)")
 		})
 	}
 }

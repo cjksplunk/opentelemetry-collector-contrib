@@ -742,7 +742,8 @@ func TestScrapeTopQueriesMariaDB(t *testing.T) {
 // correct attributes on query_sample events. mysql.query_plan belongs only on
 // top_query events; scrapeQuerySampleFunc never calls explainQuery.
 func TestScrapeQuerySamplesExplainPlan(t *testing.T) {
-	mc := &mockClient{querySamplesFile: "query_samples"}
+	v8 := mustDBVersion(t, "8.0.27")
+	mc := &mockClient{querySamplesFile: "query_samples", dbVersionOverride: &v8}
 	cfg := createDefaultConfig().(*Config)
 	cfg.Username = "otel"
 	cfg.Password = "otel"
@@ -750,6 +751,7 @@ func TestScrapeQuerySamplesExplainPlan(t *testing.T) {
 	cfg.LogsBuilderConfig.Events.DbServerQuerySample.Enabled = true
 	s := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](1), newTTLCache[string](100, 0))
 	s.sqlclient = mc
+	s.detectedVersion = mc.getDBVersion()
 
 	logs, err := s.scrapeQuerySampleFunc(t.Context())
 	require.NoError(t, err)
@@ -784,13 +786,46 @@ func TestScrapeQuerySamplesNoExplain(t *testing.T) {
 	cfg.AddrConfig = confignet.AddrConfig{Endpoint: "localhost:3306"}
 	cfg.LogsBuilderConfig.Events.DbServerQuerySample.Enabled = true
 
-	mc := &mockClient{querySamplesFile: "query_samples"}
+	v8 := mustDBVersion(t, "8.0.27")
+	mc := &mockClient{querySamplesFile: "query_samples", dbVersionOverride: &v8}
 	s := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](1), sharedCache)
 	s.sqlclient = mc
+	s.detectedVersion = mc.getDBVersion()
 
 	_, err := s.scrapeQuerySampleFunc(t.Context())
 	require.NoError(t, err)
 
+	assert.Equal(t, 0, mc.explainQueryCallCount,
+		"scrapeQuerySampleFunc must never call explainQuery")
+}
+
+// TestScrapeQuerySampleFuncFallbackVersion verifies that scrapeQuerySampleFunc
+// succeeds when detectedVersion.supportsUserVariablesByThread() is false (MySQL 5.6),
+// proving the no-user-vars flag path is exercised without error.
+func TestScrapeQuerySampleFuncFallbackVersion(t *testing.T) {
+	v56 := mustDBVersion(t, "5.6.51")
+	mc := &mockClient{
+		querySamplesFile:  "query_samples",
+		dbVersionOverride: &v56,
+	}
+	cfg := createDefaultConfig().(*Config)
+	cfg.Username = "otel"
+	cfg.Password = "otel"
+	cfg.AddrConfig = confignet.AddrConfig{Endpoint: "localhost:3306"}
+	cfg.LogsBuilderConfig.Events.DbServerQuerySample.Enabled = true
+
+	s := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](1), newTTLCache[string](100, 0))
+	s.sqlclient = mc
+	s.detectedVersion = mc.getDBVersion()
+
+	// Sanity-check: the version should NOT support user_variables_by_thread.
+	require.False(t, s.detectedVersion.supportsUserVariablesByThread(),
+		"MySQL 5.6 must not support user_variables_by_thread")
+
+	_, err := s.scrapeQuerySampleFunc(t.Context())
+	require.NoError(t, err, "scrapeQuerySampleFunc must not error on MySQL 5.6 fallback path")
+
+	// explainQuery is never called by the query-sample scraper regardless of version.
 	assert.Equal(t, 0, mc.explainQueryCallCount,
 		"scrapeQuerySampleFunc must never call explainQuery")
 }
@@ -942,7 +977,6 @@ func TestScrapeTopQueryFuncScopeAttributes(t *testing.T) {
 		dbVersionOverride: &v8,
 	}
 	s := newTopQueryScraper(t, mc)
-	s.detectedVersion = v8
 
 	s.cacheAndDiff("mysql", "c16f24f908846019a741db580f6545a5933e9435a7cf1579c50794a6ca287739", "count_star", 1)
 	s.cacheAndDiff("mysql", "c16f24f908846019a741db580f6545a5933e9435a7cf1579c50794a6ca287739", "sum_timer_wait", 1)
