@@ -791,3 +791,91 @@ func TestScrapeQuerySamplesNoExplain(t *testing.T) {
 	assert.Equal(t, 0, mc.explainQueryCallCount,
 		"scrapeQuerySampleFunc must never call explainQuery")
 }
+
+// TestLogDetectedVersion verifies the version-detection log output produced by
+// logDetectedVersion across MySQL, MariaDB, and the unknown-version case.
+func TestLogDetectedVersion(t *testing.T) {
+	tests := []struct {
+		name        string
+		rawVersion  string // empty string → zero dbVersion (no version detected)
+		wantInfo    bool   // expect an Info "detected database version" entry
+		wantEOLWarn bool   // expect a Warn about EOL
+		wantUnknown bool   // expect the "could not be detected" Warn
+	}{
+		{
+			name:        "MySQL 8.0 — supported, no EOL warning",
+			rawVersion:  "8.0.27",
+			wantInfo:    true,
+			wantEOLWarn: false,
+		},
+		{
+			name:        "MySQL 5.7 — detected but EOL",
+			rawVersion:  "5.7.38",
+			wantInfo:    true,
+			wantEOLWarn: true,
+		},
+		{
+			name:        "MySQL 5.6 — detected but EOL",
+			rawVersion:  "5.6.51",
+			wantInfo:    true,
+			wantEOLWarn: true,
+		},
+		{
+			name:        "MariaDB 10.11 — supported, no EOL warning",
+			rawVersion:  "10.11.6-MariaDB",
+			wantInfo:    true,
+			wantEOLWarn: false,
+		},
+		{
+			name:        "MariaDB 10.4 — old but no EOL warning (EOL check is MySQL-only)",
+			rawVersion:  "10.4.0-MariaDB",
+			wantInfo:    true,
+			wantEOLWarn: false,
+		},
+		{
+			name:        "unknown version — fallback warning, no info log",
+			rawVersion:  "",
+			wantInfo:    false,
+			wantEOLWarn: false,
+			wantUnknown: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			core, logs := observer.New(zapcore.DebugLevel)
+			logger := zap.New(core)
+
+			cfg := createDefaultConfig().(*Config)
+			s := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](100), newTTLCache[string](100, 0))
+			s.logger = logger
+
+			var dbVer dbVersion
+			if tc.rawVersion != "" {
+				dbVer = mustDBVersion(t, tc.rawVersion)
+			}
+
+			s.logDetectedVersion(dbVer)
+
+			infoEntries := logs.FilterMessage("detected database version").All()
+			eolEntries := logs.FilterMessage("detected MySQL version is past end-of-life and may not be supported by this receiver in a future release").All()
+			unknownEntries := logs.FilterMessage("database version could not be detected at startup; receiver will use MySQL <8/MariaDB fallback behavior for its entire lifetime").All()
+
+			if tc.wantInfo {
+				assert.Len(t, infoEntries, 1, "expected info log entry")
+			} else {
+				assert.Empty(t, infoEntries, "unexpected info log entry")
+			}
+			if tc.wantEOLWarn {
+				assert.Len(t, eolEntries, 1, "expected EOL warn entry")
+			} else {
+				assert.Empty(t, eolEntries, "unexpected EOL warn entry")
+			}
+			if tc.wantUnknown {
+				assert.Len(t, unknownEntries, 1, "expected unknown-version warn entry")
+			} else {
+				assert.Empty(t, unknownEntries, "unexpected unknown-version warn entry")
+			}
+		})
+	}
+}
