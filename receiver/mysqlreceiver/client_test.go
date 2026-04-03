@@ -136,72 +136,98 @@ func TestDBVersionCapabilities(t *testing.T) {
 		dv                                dbVersion
 		wantSupportsQuerySampleText       bool
 		wantSupportsUserVariablesByThread bool
+		wantSupportsReplicaStatus         bool
 	}{
 		{
 			name:                              "MySQL 8.0.27",
 			dv:                                dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "8.0.27")},
 			wantSupportsQuerySampleText:       true,
 			wantSupportsUserVariablesByThread: true,
+			wantSupportsReplicaStatus:         true,
 		},
 		{
 			name:                              "MySQL 8.0.3 (minimum for query_sample_text)",
 			dv:                                dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "8.0.3")},
 			wantSupportsQuerySampleText:       true,
 			wantSupportsUserVariablesByThread: true,
+			wantSupportsReplicaStatus:         false,
+		},
+		{
+			name:                              "MySQL 8.0.22 (minimum for SHOW REPLICA STATUS)",
+			dv:                                dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "8.0.22")},
+			wantSupportsQuerySampleText:       true,
+			wantSupportsUserVariablesByThread: true,
+			wantSupportsReplicaStatus:         true,
+		},
+		{
+			name:                              "MySQL 8.0.21 (below SHOW REPLICA STATUS minimum)",
+			dv:                                dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "8.0.21")},
+			wantSupportsQuerySampleText:       true,
+			wantSupportsUserVariablesByThread: true,
+			wantSupportsReplicaStatus:         false,
 		},
 		{
 			name:                              "MySQL 5.7.44",
 			dv:                                dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "5.7.44")},
 			wantSupportsQuerySampleText:       false,
 			wantSupportsUserVariablesByThread: true,
+			wantSupportsReplicaStatus:         false,
 		},
 		{
 			name:                              "MySQL 5.7.3 (minimum for user_variables_by_thread)",
 			dv:                                dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "5.7.3")},
 			wantSupportsQuerySampleText:       false,
 			wantSupportsUserVariablesByThread: true,
+			wantSupportsReplicaStatus:         false,
 		},
 		{
 			name:                              "MySQL 5.7.2 (below user_variables_by_thread minimum)",
 			dv:                                dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "5.7.2")},
 			wantSupportsQuerySampleText:       false,
 			wantSupportsUserVariablesByThread: false,
+			wantSupportsReplicaStatus:         false,
 		},
 		{
 			name:                              "MySQL 5.6.51",
 			dv:                                dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "5.6.51")},
 			wantSupportsQuerySampleText:       false,
 			wantSupportsUserVariablesByThread: false,
+			wantSupportsReplicaStatus:         false,
 		},
 		{
 			name:                              "MariaDB 10.11.6",
 			dv:                                dbVersion{product: dbProductMariaDB, version: mustParseVersion(t, "10.11.6")},
 			wantSupportsQuerySampleText:       false,
 			wantSupportsUserVariablesByThread: true,
+			wantSupportsReplicaStatus:         false,
 		},
 		{
 			name:                              "MariaDB 10.5.2 (minimum for user_variables_by_thread)",
 			dv:                                dbVersion{product: dbProductMariaDB, version: mustParseVersion(t, "10.5.2")},
 			wantSupportsQuerySampleText:       false,
 			wantSupportsUserVariablesByThread: true,
+			wantSupportsReplicaStatus:         false,
 		},
 		{
 			name:                              "MariaDB 10.5.1 (below user_variables_by_thread minimum)",
 			dv:                                dbVersion{product: dbProductMariaDB, version: mustParseVersion(t, "10.5.1")},
 			wantSupportsQuerySampleText:       false,
 			wantSupportsUserVariablesByThread: false,
+			wantSupportsReplicaStatus:         false,
 		},
 		{
 			name:                              "MariaDB 11.4.2",
 			dv:                                dbVersion{product: dbProductMariaDB, version: mustParseVersion(t, "11.4.2")},
 			wantSupportsQuerySampleText:       false,
 			wantSupportsUserVariablesByThread: true,
+			wantSupportsReplicaStatus:         false,
 		},
 		{
 			name:                              "zero value (version unknown)",
 			dv:                                dbVersion{},
 			wantSupportsQuerySampleText:       false,
 			wantSupportsUserVariablesByThread: false,
+			wantSupportsReplicaStatus:         false,
 		},
 	}
 
@@ -209,6 +235,7 @@ func TestDBVersionCapabilities(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.wantSupportsQuerySampleText, tt.dv.supportsQuerySampleText(), "supportsQuerySampleText()")
 			assert.Equal(t, tt.wantSupportsUserVariablesByThread, tt.dv.supportsUserVariablesByThread(), "supportsUserVariablesByThread()")
+			assert.Equal(t, tt.wantSupportsReplicaStatus, tt.dv.supportsReplicaStatus(), "supportsReplicaStatus()")
 		})
 	}
 }
@@ -261,7 +288,7 @@ func TestReplicaStatusQuery(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			q := "SHOW REPLICA STATUS"
-			if tt.dbVer.product == dbProductMariaDB || tt.dbVer.version.LessThan(minMySQLReplicaStatusVersion) {
+			if !tt.dbVer.supportsReplicaStatus() {
 				q = "SHOW SLAVE STATUS"
 			}
 			assert.Equal(t, tt.wantQuery, q)

@@ -674,6 +674,8 @@ func mustDBVersion(t *testing.T, rawVersion string) dbVersion {
 }
 
 // newTopQueryScraper creates a mySQLScraper configured for top-query tests.
+// If mc.dbVersionOverride is set, it is also applied to s.detectedVersion so
+// that the scraper's version-based capability flags match the mock client.
 func newTopQueryScraper(t *testing.T, mc *mockClient) *mySQLScraper {
 	t.Helper()
 	cfg := createDefaultConfig().(*Config)
@@ -683,6 +685,7 @@ func newTopQueryScraper(t *testing.T, mc *mockClient) *mySQLScraper {
 	cfg.LogsBuilderConfig.Events.DbServerTopQuery.Enabled = true
 	s := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](100), newTTLCache[string](100, 0))
 	s.sqlclient = mc
+	s.detectedVersion = mc.getDBVersion()
 	return s
 }
 
