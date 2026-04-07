@@ -609,16 +609,17 @@ func (c *mockClient) getQuerySamples(uint64, bool) ([]querySample, error) {
 		s.threadID, _ = parseInt(text[1])
 		s.processlistUser = text[2]
 		s.processlistHost = text[3]
-		s.processlistDB = text[4]
-		s.processlistCommand = text[5]
-		s.processlistState = text[6]
-		s.sqlText = text[7]
-		s.digest = text[8]
-		s.eventID, _ = parseInt(text[9])
-		s.sessionStatus = text[10]
-		s.waitEvent = text[11]
-		s.waitTime, _ = strconv.ParseFloat(text[12], 64)
-		s.traceparent = text[13]
+		s.processlistPort, _ = parseInt(text[4])
+		s.processlistDB = text[5]
+		s.processlistCommand = text[6]
+		s.processlistState = text[7]
+		s.sqlText = text[8]
+		s.digest = text[9]
+		s.eventID, _ = parseInt(text[10])
+		s.sessionStatus = text[11]
+		s.waitEvent = text[12]
+		s.waitTime, _ = strconv.ParseFloat(text[13], 64)
+		s.traceparent = text[14]
 
 		samples = append(samples, s)
 	}

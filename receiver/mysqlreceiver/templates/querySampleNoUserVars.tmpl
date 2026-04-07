@@ -3,6 +3,7 @@ SELECT
     thread.thread_id AS internal_thread_id,
     COALESCE(thread.processlist_user, '') AS session_user,
     COALESCE(thread.processlist_host, '') AS client_address,
+    COALESCE(thread.processlist_port, 0) AS client_port,
     COALESCE(thread.processlist_db, '') AS current_database,
     COALESCE(thread.processlist_command, '') AS session_command,
     COALESCE(thread.processlist_state, '') AS session_state,

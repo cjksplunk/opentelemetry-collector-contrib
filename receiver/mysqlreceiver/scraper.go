@@ -7,7 +7,6 @@ import (
 	"container/heap"
 	"context"
 	"errors"
-	"net"
 	"sort"
 	"strconv"
 	"time"
@@ -801,23 +800,10 @@ func (m *mySQLScraper) scrapeQuerySamples(_ context.Context, now pcommon.Timesta
 
 	for i := range samples {
 		sample := &samples[i]
-		clientAddress := ""
-		clientPort := int64(0)
-		networkPeerAddress := ""
-		networkPeerPort := int64(0)
-
-		if sample.processlistHost != "" {
-			addr, port, err := net.SplitHostPort(sample.processlistHost)
-			if err != nil {
-				m.logger.Error("Failed to parse processlistHost value", zap.Error(err))
-				errs.AddPartial(1, err)
-			} else {
-				clientAddress = addr
-				clientPort, _ = parseInt(port)
-				networkPeerAddress = addr
-				networkPeerPort, _ = parseInt(port)
-			}
-		}
+		clientAddress := sample.processlistHost
+		clientPort := sample.processlistPort
+		networkPeerAddress := sample.processlistHost
+		networkPeerPort := sample.processlistPort
 
 		obfuscatedQuery, obfErr := m.obfuscator.obfuscateSQLString(sample.sqlText)
 		if obfErr != nil {
