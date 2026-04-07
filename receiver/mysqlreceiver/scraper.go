@@ -7,6 +7,7 @@ import (
 	"container/heap"
 	"context"
 	"errors"
+	"net"
 	"sort"
 	"strconv"
 	"time"
@@ -800,10 +801,22 @@ func (m *mySQLScraper) scrapeQuerySamples(_ context.Context, now pcommon.Timesta
 
 	for i := range samples {
 		sample := &samples[i]
-		clientAddress := sample.processlistHost
+		// information_schema.PROCESSLIST.HOST returns "host:port" for TCP/IP connections.
+		// Unix socket connections return just the host with no port.
+		clientAddress, portStr, err := net.SplitHostPort(sample.processlistHostPort)
+		if err != nil {
+			// No port present (Unix socket or empty) — use the value as-is.
+			clientAddress = sample.processlistHostPort
+			portStr = ""
+		}
 		clientPort := int64(0)
-		networkPeerAddress := sample.processlistHost
-		networkPeerPort := int64(0)
+		if portStr != "" {
+			if p, err := strconv.ParseInt(portStr, 10, 64); err == nil {
+				clientPort = p
+			}
+		}
+		networkPeerAddress := clientAddress
+		networkPeerPort := clientPort
 
 		obfuscatedQuery, obfErr := m.obfuscator.obfuscateSQLString(sample.sqlText)
 		if obfErr != nil {

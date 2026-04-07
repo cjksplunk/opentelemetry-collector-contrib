@@ -2,7 +2,7 @@ SELECT
     thread.processlist_id AS session_id,
     thread.thread_id AS internal_thread_id,
     COALESCE(thread.processlist_user, '') AS session_user,
-    COALESCE(thread.processlist_host, '') AS client_address,
+    COALESCE(pl.HOST, '') AS client_address,
     COALESCE(thread.processlist_db, '') AS current_database,
     COALESCE(thread.processlist_command, '') AS session_command,
     COALESCE(thread.processlist_state, '') AS session_state,
@@ -32,6 +32,9 @@ SELECT
 FROM
     performance_schema.threads AS thread
     LEFT JOIN performance_schema.events_waits_current AS wait ON wait.thread_id = thread.thread_id
+    -- information_schema.PROCESSLIST.HOST contains host:port for TCP/IP connections,
+    -- unlike performance_schema.threads.processlist_host which is host-only.
+    LEFT JOIN information_schema.PROCESSLIST AS pl ON pl.ID = thread.PROCESSLIST_ID
 WHERE
     thread.processlist_state IS NOT NULL
     AND thread.processlist_command NOT IN ('Sleep', 'Daemon')

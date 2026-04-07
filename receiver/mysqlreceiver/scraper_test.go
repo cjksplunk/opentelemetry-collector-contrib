@@ -608,7 +608,7 @@ func (c *mockClient) getQuerySamples(uint64, bool) ([]querySample, error) {
 		s.sessionID, _ = parseInt(text[0])
 		s.threadID, _ = parseInt(text[1])
 		s.processlistUser = text[2]
-		s.processlistHost = text[3]
+		s.processlistHostPort = text[3]
 		s.processlistDB = text[4]
 		s.processlistCommand = text[5]
 		s.processlistState = text[6]

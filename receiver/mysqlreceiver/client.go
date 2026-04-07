@@ -285,20 +285,20 @@ type replicaStatusStats struct {
 }
 
 type querySample struct {
-	sessionID          int64
-	threadID           int64
-	processlistUser    string
-	processlistHost    string
-	processlistDB      string
-	processlistCommand string
-	processlistState   string
-	sqlText            string
-	digest             string
-	eventID            int64
-	sessionStatus      string
-	waitEvent          string
-	waitTime           float64
-	traceparent        string
+	sessionID           int64
+	threadID            int64
+	processlistUser     string
+	processlistHostPort string
+	processlistDB       string
+	processlistCommand  string
+	processlistState    string
+	sqlText             string
+	digest              string
+	eventID             int64
+	sessionStatus       string
+	waitEvent           string
+	waitTime            float64
+	traceparent         string
 }
 
 type topQuery struct {
@@ -928,7 +928,7 @@ func (c *mySQLClient) getQuerySamples(limit uint64, supportsUserVarsByThread boo
 			&s.sessionID,
 			&s.threadID,
 			&s.processlistUser,
-			&s.processlistHost,
+			&s.processlistHostPort,
 			&s.processlistDB,
 			&s.processlistCommand,
 			&s.processlistState,
