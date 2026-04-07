@@ -673,16 +673,21 @@ func TestScrapeQuerySamplesQueryPlanCache(t *testing.T) {
 		scraper := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](100), newTTLCache[string](0, time.Hour*24*365*10))
 		scraper.sqlclient = mc
 
-		_, err := scraper.scrapeQuerySampleFunc(t.Context())
+		logs1, err := scraper.scrapeQuerySampleFunc(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, 1, mc.explainCalls, "explainQuery should be called once on first scrape")
+
+		record := logs1.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
+		planAttr, ok := record.Attributes().Get("mysql.query_plan")
+		require.True(t, ok, "mysql.query_plan attribute must be present on first scrape")
+		assert.NotEmpty(t, planAttr.Str(), "mysql.query_plan must be non-empty on successful explain")
 
 		_, err = scraper.scrapeQuerySampleFunc(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, 1, mc.explainCalls, "explainQuery should not be called again on second scrape (cache hit)")
 	})
 
-	t.Run("obfuscation error logs error and emits empty query plan", func(t *testing.T) {
+	t.Run("obfuscation error logs error, emits empty query plan, and retries on next scrape", func(t *testing.T) {
 		core, logs := observer.New(zapcore.ErrorLevel)
 		mc := &countingExplainClient{
 			mockClient:   mockClient{querySamplesFile: "query_samples"},
@@ -700,5 +705,10 @@ func TestScrapeQuerySamplesQueryPlanCache(t *testing.T) {
 		planAttr, ok := record.Attributes().Get("mysql.query_plan")
 		require.True(t, ok, "mysql.query_plan attribute must be present")
 		assert.Empty(t, planAttr.Str(), "mysql.query_plan must be empty on obfuscation error")
+
+		// Obfuscation failure must NOT be cached — explainQuery should be retried on the next scrape.
+		_, err = scraper.scrapeQuerySampleFunc(t.Context())
+		require.NoError(t, err)
+		assert.Equal(t, 2, mc.explainCalls, "explainQuery should be retried after an obfuscation error (not cached)")
 	})
 }

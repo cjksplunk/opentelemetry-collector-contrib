@@ -765,14 +765,19 @@ func (m *mySQLScraper) scrapeQuerySamples(_ context.Context, now pcommon.Timesta
 		queryPlan, ok := m.queryPlanCache.Get(cacheKey)
 		if !ok {
 			queryPlan = m.sqlclient.explainQuery(sample.sqlText, sample.sqlText, sample.processlistDB, sample.digest, m.logger)
-			if queryPlan != "" {
+			if queryPlan == "" {
+				m.logger.Debug("query plan not available", zap.String("digest", sample.digest))
+			} else {
 				var err error
 				queryPlan, err = m.obfuscator.obfuscatePlan(queryPlan)
 				if err != nil {
 					m.logger.Error("Failed to obfuscate query plan", zap.Error(err))
+					queryPlan = ""
+					// Do not cache on obfuscation error — allow retry on next scrape.
+				} else {
+					m.queryPlanCache.Add(cacheKey, queryPlan)
 				}
 			}
-			m.queryPlanCache.Add(cacheKey, queryPlan)
 		}
 
 		// Use context.Background() as the default (not the scraper ctx) so that log
