@@ -645,3 +645,60 @@ func (*mockClient) explainQuery(_, _, _, _ string, _ *zap.Logger) string {
 func (*mockClient) Close() error {
 	return nil
 }
+
+// countingExplainClient wraps mockClient and counts calls to explainQuery.
+type countingExplainClient struct {
+	mockClient
+	explainCalls int
+	planToReturn string
+}
+
+func (c *countingExplainClient) explainQuery(_, _, _, _ string, _ *zap.Logger) string {
+	c.explainCalls++
+	return c.planToReturn
+}
+
+func TestScrapeQuerySamplesQueryPlanCache(t *testing.T) {
+	cfg := createDefaultConfig().(*Config)
+	cfg.Username = "otel"
+	cfg.Password = "otel"
+	cfg.AddrConfig = confignet.AddrConfig{Endpoint: "localhost:3306"}
+	cfg.LogsBuilderConfig.Events.DbServerQuerySample.Enabled = true
+
+	t.Run("query plan fetched once and reused from cache on second scrape", func(t *testing.T) {
+		mc := &countingExplainClient{
+			mockClient:   mockClient{querySamplesFile: "query_samples"},
+			planToReturn: `{"query_block":{"select_id":1}}`,
+		}
+		scraper := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](100), newTTLCache[string](0, time.Hour*24*365*10))
+		scraper.sqlclient = mc
+
+		_, err := scraper.scrapeQuerySampleFunc(t.Context())
+		require.NoError(t, err)
+		assert.Equal(t, 1, mc.explainCalls, "explainQuery should be called once on first scrape")
+
+		_, err = scraper.scrapeQuerySampleFunc(t.Context())
+		require.NoError(t, err)
+		assert.Equal(t, 1, mc.explainCalls, "explainQuery should not be called again on second scrape (cache hit)")
+	})
+
+	t.Run("obfuscation error logs error and emits empty query plan", func(t *testing.T) {
+		core, logs := observer.New(zapcore.ErrorLevel)
+		mc := &countingExplainClient{
+			mockClient:   mockClient{querySamplesFile: "query_samples"},
+			planToReturn: "not valid json",
+		}
+		scraper := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](100), newTTLCache[string](0, time.Hour*24*365*10))
+		scraper.sqlclient = mc
+		scraper.logger = zap.New(core)
+
+		logs2, err := scraper.scrapeQuerySampleFunc(t.Context())
+		require.NoError(t, err)
+		require.Equal(t, 1, logs.FilterMessage("Failed to obfuscate query plan").Len(), "expected one error log for obfuscation failure")
+
+		record := logs2.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
+		planAttr, ok := record.Attributes().Get("mysql.query_plan")
+		require.True(t, ok, "mysql.query_plan attribute must be present")
+		assert.Empty(t, planAttr.Str(), "mysql.query_plan must be empty on obfuscation error")
+	})
+}

@@ -761,6 +761,20 @@ func (m *mySQLScraper) scrapeQuerySamples(_ context.Context, now pcommon.Timesta
 			m.logger.Error("Failed to obfuscate query", zap.Error(obfErr))
 		}
 
+		cacheKey := sample.processlistDB + "-" + sample.digest
+		queryPlan, ok := m.queryPlanCache.Get(cacheKey)
+		if !ok {
+			queryPlan = m.sqlclient.explainQuery(sample.sqlText, sample.sqlText, sample.processlistDB, sample.digest, m.logger)
+			if queryPlan != "" {
+				var err error
+				queryPlan, err = m.obfuscator.obfuscatePlan(queryPlan)
+				if err != nil {
+					m.logger.Error("Failed to obfuscate query plan", zap.Error(err))
+				}
+			}
+			m.queryPlanCache.Add(cacheKey, queryPlan)
+		}
+
 		// Use context.Background() as the default (not the scraper ctx) so that log
 		// records carry empty trace/span IDs when no application traceparent is present.
 		// This prevents the collector's own internal scrape span from being stamped onto
@@ -786,6 +800,7 @@ func (m *mySQLScraper) scrapeQuerySamples(_ context.Context, now pcommon.Timesta
 			sample.processlistState,
 			obfuscatedQuery,
 			sample.digest,
+			queryPlan,
 			sample.digest,
 			sample.eventID,
 			sample.waitEvent,
