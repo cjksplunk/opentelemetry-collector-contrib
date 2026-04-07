@@ -291,6 +291,11 @@ func TestScrapeQuerySamplesTraceparent(t *testing.T) {
 
 var _ client = (*mockClient)(nil)
 
+type explainQueryCall struct {
+	digestText      string
+	sampleStatement string
+}
+
 type mockClient struct {
 	globalStatsFile             string
 	innodbStatsFile             string
@@ -308,6 +313,8 @@ type mockClient struct {
 	// explainQueryCallCount is incremented each time explainQuery is called.
 	// Tests that assert EXPLAIN was skipped can check this stays at zero.
 	explainQueryCallCount int
+	// explainQueryCalls records the digestText and sampleStatement args for each call.
+	explainQueryCalls []explainQueryCall
 }
 
 func readFile(fname string) (map[string]string, error) {
@@ -648,8 +655,12 @@ func (c *mockClient) getTopQueries(uint64, uint64, bool) ([]topQuery, error) {
 	return queries, nil
 }
 
-func (c *mockClient) explainQuery(_, _, _, _ string, _ *zap.Logger) string {
+func (c *mockClient) explainQuery(digestText, sampleStatement, _, _ string, _ *zap.Logger) string {
 	c.explainQueryCallCount++
+	c.explainQueryCalls = append(c.explainQueryCalls, explainQueryCall{
+		digestText:      digestText,
+		sampleStatement: sampleStatement,
+	})
 	file, _ := os.ReadFile(filepath.Join("testdata", "obfuscate", "inputQueryPlan.json"))
 
 	return string(file)
@@ -966,6 +977,64 @@ func TestSetScopeAttributes(t *testing.T) {
 		attrs := logs.ResourceLogs().At(0).ScopeLogs().At(0).Scope().Attributes()
 		assert.Equal(t, 0, attrs.Len(), "no attributes should be set when version is unknown")
 	})
+}
+
+// TestScrapeQuerySampleFuncScopeAttributes verifies that scrapeQuerySampleFunc
+// stamps db.version and db.product scope attributes — exercising emitLogsWithScopeAttrs
+// via the query-sample path (as opposed to the top-query path).
+func TestScrapeQuerySampleFuncScopeAttributes(t *testing.T) {
+	v8 := mustDBVersion(t, "8.0.27")
+	mc := &mockClient{querySamplesFile: "query_samples", dbVersionOverride: &v8}
+	cfg := createDefaultConfig().(*Config)
+	cfg.Username = "otel"
+	cfg.Password = "otel"
+	cfg.AddrConfig = confignet.AddrConfig{Endpoint: "localhost:3306"}
+	cfg.LogsBuilderConfig.Events.DbServerQuerySample.Enabled = true
+	s := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](1), newTTLCache[string](100, 0))
+	s.sqlclient = mc
+	s.detectedVersion = mc.getDBVersion()
+
+	logs, err := s.scrapeQuerySampleFunc(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, 1, logs.ResourceLogs().Len())
+
+	sls := logs.ResourceLogs().At(0).ScopeLogs()
+	for i := 0; i < sls.Len(); i++ {
+		attrs := sls.At(i).Scope().Attributes()
+		ver, ok := attrs.Get("db.version")
+		assert.True(t, ok, "db.version scope attribute missing on query-sample output")
+		assert.Equal(t, "8.0.27", ver.Str())
+		prod, ok := attrs.Get("db.product")
+		assert.True(t, ok, "db.product scope attribute missing on query-sample output")
+		assert.Equal(t, "MySQL", prod.Str())
+	}
+}
+
+// TestScrapeTopQueryFuncScanRowWithSampleText verifies that when MySQL 8 is detected
+// (supportsSampleText=true), the 6-column scanRow path is used and querySampleText
+// is passed as the sampleStatement argument to explainQuery.
+func TestScrapeTopQueryFuncScanRowWithSampleText(t *testing.T) {
+	v8 := mustDBVersion(t, "8.0.27")
+	mc := &mockClient{
+		topQueriesFile:    "top_queries",
+		dbVersionOverride: &v8,
+	}
+	s := newTopQueryScraper(t, mc)
+
+	// Prime caches so the diff is non-zero and explainQuery is reached.
+	s.cacheAndDiff("mysql", "c16f24f908846019a741db580f6545a5933e9435a7cf1579c50794a6ca287739", "count_star", 1)
+	s.cacheAndDiff("mysql", "c16f24f908846019a741db580f6545a5933e9435a7cf1579c50794a6ca287739", "sum_timer_wait", 1)
+
+	_, err := s.scrapeTopQueryFunc(t.Context())
+	require.NoError(t, err)
+
+	// explainQuery must have been called — querySampleText is present in the fixture.
+	require.Equal(t, 1, mc.explainQueryCallCount, "explainQuery should be called when querySampleText is non-empty")
+
+	// The sampleStatement arg must equal column 6 from the top_queries fixture.
+	require.Len(t, mc.explainQueryCalls, 1)
+	assert.Equal(t, "SELECT @@session.transaction_read_only", mc.explainQueryCalls[0].sampleStatement,
+		"sampleStatement must be the querySampleText scanned from column 6")
 }
 
 // TestScrapeTopQueryFuncScopeAttributes verifies that scrapeTopQueryFunc stamps

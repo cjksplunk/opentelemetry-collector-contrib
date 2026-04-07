@@ -93,12 +93,8 @@ func (m *mySQLScraper) logDetectedVersion(dbVer dbVersion) {
 		)
 		return
 	}
-	product := "MySQL"
-	if dbVer.product == dbProductMariaDB {
-		product = "MariaDB"
-	}
 	m.logger.Info("detected database version",
-		zap.String("product", product),
+		zap.String("product", dbVer.productString()),
 		zap.String("version", dbVer.version.String()),
 		zap.Bool("supports_query_sample_text", dbVer.supportsQuerySampleText()),
 		zap.Bool("supports_user_variables_by_thread", dbVer.supportsUserVariablesByThread()),
@@ -120,16 +116,12 @@ func (m *mySQLScraper) setScopeAttributes(logs plog.Logs) {
 	if m.detectedVersion.version == nil {
 		return
 	}
-	product := "MySQL"
-	if m.detectedVersion.product == dbProductMariaDB {
-		product = "MariaDB"
-	}
 	for i := 0; i < logs.ResourceLogs().Len(); i++ {
 		sls := logs.ResourceLogs().At(i).ScopeLogs()
 		for j := 0; j < sls.Len(); j++ {
 			attrs := sls.At(j).Scope().Attributes()
 			attrs.PutStr("db.version", m.detectedVersion.version.String())
-			attrs.PutStr("db.product", product)
+			attrs.PutStr("db.product", m.detectedVersion.productString())
 		}
 	}
 }
@@ -190,6 +182,16 @@ func (m *mySQLScraper) scrape(context.Context) (pmetric.Metrics, error) {
 	return m.mb.Emit(), errs.Combine()
 }
 
+// emitLogsWithScopeAttrs emits accumulated log records, stamps the resource
+// endpoint, applies scope-level version attributes, and returns the result.
+func (m *mySQLScraper) emitLogsWithScopeAttrs(errs *scrapererror.ScrapeErrors) (plog.Logs, error) {
+	rb := m.lb.NewResourceBuilder()
+	rb.SetMysqlInstanceEndpoint(m.config.Endpoint)
+	logs := m.lb.Emit(metadata.WithLogsResource(rb.Emit()))
+	m.setScopeAttributes(logs)
+	return logs, errs.Combine()
+}
+
 func (m *mySQLScraper) scrapeTopQueryFunc(_ context.Context) (plog.Logs, error) {
 	if m.sqlclient == nil {
 		return plog.NewLogs(), errors.New("failed to connect to MySQL client")
@@ -204,11 +206,7 @@ func (m *mySQLScraper) scrapeTopQueryFunc(_ context.Context) (plog.Logs, error) 
 	} else {
 		m.scrapeTopQueries(now, errs)
 	}
-	rb := m.lb.NewResourceBuilder()
-	rb.SetMysqlInstanceEndpoint(m.config.Endpoint)
-	logs := m.lb.Emit(metadata.WithLogsResource(rb.Emit()))
-	m.setScopeAttributes(logs)
-	return logs, errs.Combine()
+	return m.emitLogsWithScopeAttrs(errs)
 }
 
 func (m *mySQLScraper) scrapeQuerySampleFunc(ctx context.Context) (plog.Logs, error) {
@@ -221,12 +219,7 @@ func (m *mySQLScraper) scrapeQuerySampleFunc(ctx context.Context) (plog.Logs, er
 	now := pcommon.NewTimestampFromTime(time.Now())
 
 	m.scrapeQuerySamples(ctx, now, errs)
-
-	rb := m.lb.NewResourceBuilder()
-	rb.SetMysqlInstanceEndpoint(m.config.Endpoint)
-	logs := m.lb.Emit(metadata.WithLogsResource(rb.Emit()))
-	m.setScopeAttributes(logs)
-	return logs, errs.Combine()
+	return m.emitLogsWithScopeAttrs(errs)
 }
 
 func (m *mySQLScraper) scrapeGlobalStats(now pcommon.Timestamp, errs *scrapererror.ScrapeErrors) {
@@ -759,8 +752,9 @@ func (m *mySQLScraper) scrapeTopQueries(now pcommon.Timestamp, errs *scrapererro
 		// querySampleText is "" when the fallback template was used (MySQL <8 / MariaDB).
 		// Skip EXPLAIN in that case — there is no sample statement to explain.
 		if q.querySampleText != "" {
+			cacheKey := q.schemaName + "-" + q.digest
 			var ok bool
-			if queryPlan, ok = m.queryPlanCache.Get(q.schemaName + "-" + q.digest); !ok {
+			if queryPlan, ok = m.queryPlanCache.Get(cacheKey); !ok {
 				// attempt to explain the query
 				queryPlan = m.sqlclient.explainQuery(q.digestText, q.querySampleText, q.schemaName, q.digest, m.logger)
 				if queryPlan == "" {
@@ -779,7 +773,7 @@ func (m *mySQLScraper) scrapeTopQueries(now pcommon.Timestamp, errs *scrapererro
 				}
 				// Cache the result (including "" for unavailable/failed plans) so that
 				// scrapeQuerySamples can reuse it and EXPLAIN is not re-issued every cycle.
-				m.queryPlanCache.Add(q.schemaName+"-"+q.digest, queryPlan)
+				m.queryPlanCache.Add(cacheKey, queryPlan)
 			}
 		}
 

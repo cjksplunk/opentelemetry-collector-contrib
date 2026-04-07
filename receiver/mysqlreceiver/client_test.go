@@ -338,3 +338,23 @@ func TestGetDBVersionCaching(t *testing.T) {
 	assert.Equal(t, preloaded.product, got.product)
 	assert.Equal(t, preloaded.version.String(), got.version.String())
 }
+
+// TestDBVersionHelperMethods verifies isValid and productString across all product/version combinations.
+func TestDBVersionHelperMethods(t *testing.T) {
+	t.Run("isValid returns false for zero value", func(t *testing.T) {
+		assert.False(t, dbVersion{}.isValid())
+	})
+	t.Run("isValid returns true when version is set", func(t *testing.T) {
+		assert.True(t, dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "8.0.27")}.isValid())
+	})
+	t.Run("productString MySQL", func(t *testing.T) {
+		assert.Equal(t, "MySQL", dbVersion{product: dbProductMySQL, version: mustParseVersion(t, "8.0.27")}.productString())
+	})
+	t.Run("productString MariaDB", func(t *testing.T) {
+		assert.Equal(t, "MariaDB", dbVersion{product: dbProductMariaDB, version: mustParseVersion(t, "10.11.6")}.productString())
+	})
+	t.Run("productString zero value defaults to MySQL", func(t *testing.T) {
+		// Zero value has product=dbProductMySQL (iota 0); productString must return "MySQL".
+		assert.Equal(t, "MySQL", dbVersion{}.productString())
+	})
+}

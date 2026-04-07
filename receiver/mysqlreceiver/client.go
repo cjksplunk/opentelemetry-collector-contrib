@@ -23,8 +23,8 @@ import (
 type dbProduct int
 
 const (
-	dbProductMySQL   dbProduct = iota
-	dbProductMariaDB dbProduct = iota
+	dbProductMySQL dbProduct = iota
+	dbProductMariaDB
 )
 
 // minMySQLReplicaStatusVersion is the MySQL version at which SHOW REPLICA STATUS
@@ -38,13 +38,26 @@ type dbVersion struct {
 	version *version.Version
 }
 
+// isValid reports whether a version was successfully detected.
+func (v dbVersion) isValid() bool {
+	return v.version != nil
+}
+
+// productString returns a human-readable product name for logging.
+func (v dbVersion) productString() string {
+	if v.product == dbProductMariaDB {
+		return "MariaDB"
+	}
+	return "MySQL"
+}
+
 // supportsQuerySampleText reports whether the server's
 // performance_schema.events_statements_summary_by_digest table includes the
 // query_sample_text column (MySQL 8.x+; absent on MySQL <8 and all MariaDB versions).
 // Note: query_sample_text was technically introduced in MySQL 8.0.3, but MySQL 8.0.0–8.0.2
 // were pre-GA milestone releases; the check uses major version only.
 func (v dbVersion) supportsQuerySampleText() bool {
-	if v.version == nil {
+	if !v.isValid() {
 		return false
 	}
 	return v.product == dbProductMySQL && v.version.Segments()[0] >= 8
@@ -66,7 +79,7 @@ var minMariaDBUserVarsVersion = version.Must(version.NewVersion("10.5.2"))
 // Note: support for MySQL 5.6 and 5.7 is included for completeness but should be
 // considered deprecated — both versions have passed their official end-of-life dates.
 func (v dbVersion) supportsUserVariablesByThread() bool {
-	if v.version == nil {
+	if !v.isValid() {
 		return false
 	}
 	switch v.product {
@@ -81,7 +94,7 @@ func (v dbVersion) supportsUserVariablesByThread() bool {
 // (MySQL 8.0.22+). Older MySQL versions and all MariaDB versions use the
 // deprecated SHOW SLAVE STATUS syntax.
 func (v dbVersion) supportsReplicaStatus() bool {
-	if v.version == nil {
+	if !v.isValid() {
 		return false
 	}
 	return v.product == dbProductMySQL && !v.version.LessThan(minMySQLReplicaStatusVersion)
@@ -842,11 +855,11 @@ func (c *mySQLClient) getTopQueries(topNValue, lookbackTime uint64, supportsSamp
 
 	defer rows.Close()
 
-	var topQueries []topQuery
-	for rows.Next() {
-		var tq topQuery
+	// scanRow is defined once outside the loop to avoid re-evaluating
+	// supportsSampleText on every iteration.
+	scanRow := func(tq *topQuery) error {
 		if supportsSampleText {
-			err = rows.Scan(
+			return rows.Scan(
 				&tq.schemaName,
 				&tq.digest,
 				&tq.digestText,
@@ -854,17 +867,21 @@ func (c *mySQLClient) getTopQueries(topNValue, lookbackTime uint64, supportsSamp
 				&tq.sumTimerWaitInPicoSeconds,
 				&tq.querySampleText,
 			)
-		} else {
-			// querySampleText stays "" — sentinel for "no sample available"
-			err = rows.Scan(
-				&tq.schemaName,
-				&tq.digest,
-				&tq.digestText,
-				&tq.countStar,
-				&tq.sumTimerWaitInPicoSeconds,
-			)
 		}
-		if err != nil {
+		// querySampleText stays "" — sentinel for "no sample available"
+		return rows.Scan(
+			&tq.schemaName,
+			&tq.digest,
+			&tq.digestText,
+			&tq.countStar,
+			&tq.sumTimerWaitInPicoSeconds,
+		)
+	}
+
+	var topQueries []topQuery
+	for rows.Next() {
+		var tq topQuery
+		if err := scanRow(&tq); err != nil {
 			return nil, err
 		}
 		topQueries = append(topQueries, tq)
