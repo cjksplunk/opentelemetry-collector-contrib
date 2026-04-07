@@ -801,9 +801,9 @@ func (m *mySQLScraper) scrapeQuerySamples(_ context.Context, now pcommon.Timesta
 	for i := range samples {
 		sample := &samples[i]
 		clientAddress := sample.processlistHost
-		clientPort := sample.processlistPort
+		clientPort := int64(0)
 		networkPeerAddress := sample.processlistHost
-		networkPeerPort := sample.processlistPort
+		networkPeerPort := int64(0)
 
 		obfuscatedQuery, obfErr := m.obfuscator.obfuscateSQLString(sample.sqlText)
 		if obfErr != nil {

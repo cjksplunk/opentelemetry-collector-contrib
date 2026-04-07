@@ -289,7 +289,6 @@ type querySample struct {
 	threadID           int64
 	processlistUser    string
 	processlistHost    string
-	processlistPort    int64
 	processlistDB      string
 	processlistCommand string
 	processlistState   string
@@ -930,7 +929,6 @@ func (c *mySQLClient) getQuerySamples(limit uint64, supportsUserVarsByThread boo
 			&s.threadID,
 			&s.processlistUser,
 			&s.processlistHost,
-			&s.processlistPort,
 			&s.processlistDB,
 			&s.processlistCommand,
 			&s.processlistState,

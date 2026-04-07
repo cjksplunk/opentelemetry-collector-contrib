@@ -54,13 +54,13 @@ resourceLogs:
                   stringValue: 192.168.1.80
               - key: client.port
                 value:
-                  intValue: "3306"
+                  intValue: "0"
               - key: network.peer.address
                 value:
                   stringValue: 192.168.1.80
               - key: network.peer.port
                 value:
-                  intValue: "3306"
+                  intValue: "0"
             body: {}
             eventName: db.server.query_sample
             spanId: "2222222222222222"
