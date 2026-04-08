@@ -211,6 +211,7 @@ type querySample struct {
 	sessionStatus      string
 	waitEvent          string
 	waitTime           float64
+	statementTimerWait float64
 	traceparent        string
 }
 
@@ -781,6 +782,7 @@ func (c *mySQLClient) getQuerySamples(limit uint64) ([]querySample, error) {
 			&s.sessionStatus,
 			&s.waitEvent,
 			&s.waitTime,
+			&s.statementTimerWait,
 			&s.traceparent,
 		)
 		if err != nil {

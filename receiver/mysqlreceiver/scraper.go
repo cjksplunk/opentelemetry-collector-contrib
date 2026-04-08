@@ -791,6 +791,7 @@ func (m *mySQLScraper) scrapeQuerySamples(_ context.Context, now pcommon.Timesta
 			sample.waitEvent,
 			sample.sessionStatus,
 			sample.sessionID,
+			sample.statementTimerWait,
 			sample.waitTime,
 			clientAddress,
 			clientPort,

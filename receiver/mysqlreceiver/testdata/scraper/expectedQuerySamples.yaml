@@ -46,6 +46,9 @@ resourceLogs:
               - key: mysql.session.id
                 value:
                   intValue: "-54321"
+              - key: mysql.events_statements_current.timer_wait
+                value:
+                  doubleValue: 0.005
               - key: mysql.events_waits_current.timer_wait
                 value:
                   doubleValue: 1.2851652e-05
