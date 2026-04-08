@@ -49,7 +49,7 @@ require (
 	go.opentelemetry.io/collector/exporter/exporterhelper v0.149.1-0.20260402195938-76ede073ee8e
 	go.opentelemetry.io/collector/featuregate v1.55.1-0.20260402195938-76ede073ee8e
 	go.opentelemetry.io/collector/pdata v1.55.1-0.20260402195938-76ede073ee8e
-	go.opentelemetry.io/otel/metric v1.42.0
+	go.opentelemetry.io/otel/metric v1.43.0
 	go.uber.org/zap v1.27.1
 	golang.org/x/net v0.52.0
 	google.golang.org/protobuf v1.36.11
@@ -118,7 +118,7 @@ require (
 	github.com/DataDog/viper v1.15.0 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.31.0 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.32.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.41.5 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.32.14 // indirect
@@ -127,7 +127,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.21 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.21 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.6 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.296.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.297.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.21 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.9 // indirect
@@ -244,10 +244,10 @@ require (
 	go.opentelemetry.io/collector/pipeline v1.55.1-0.20260402195938-76ede073ee8e // indirect
 	go.opentelemetry.io/collector/pipeline/xpipeline v0.149.1-0.20260402195938-76ede073ee8e // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.67.0 // indirect
-	go.opentelemetry.io/otel v1.42.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.42.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.42.0 // indirect
-	go.opentelemetry.io/otel/trace v1.42.0 // indirect
+	go.opentelemetry.io/otel v1.43.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.43.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.43.0 // indirect
+	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect
