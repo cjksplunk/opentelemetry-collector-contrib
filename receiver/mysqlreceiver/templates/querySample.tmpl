@@ -6,7 +6,7 @@ SELECT
     COALESCE(thread.processlist_db, '') AS current_database,
     COALESCE(thread.processlist_command, '') AS session_command,
     COALESCE(thread.processlist_state, '') AS session_state,
-    COALESCE(statement.sql_text, COALESCE(thread.PROCESSLIST_info, '')) AS sql_text,
+    COALESCE(summary.digest_text, statement.sql_text, COALESCE(thread.PROCESSLIST_info, '')) AS sql_text,
     COALESCE(statement.digest, '') AS fingerprint,
     COALESCE(wait.event_id, statement.event_id, 0) AS activity_event_id,
     CASE
@@ -38,6 +38,11 @@ FROM
     -- MySQL stores user variable names in lowercase in VARIABLE_NAME regardless
     -- of how the client spelled them, so '= traceparent' matches any case variation.
     LEFT JOIN performance_schema.user_variables_by_thread AS uvt ON uvt.thread_id = thread.thread_id AND uvt.VARIABLE_NAME = 'traceparent'
+    -- Join to events_statements_summary_by_digest to get normalized digest_text for correlation with top_query events.
+    -- Uses the composite index (SCHEMA_NAME, DIGEST) via CURRENT_SCHEMA — produces eq_ref plan (single row lookup).
+    LEFT JOIN performance_schema.events_statements_summary_by_digest AS summary
+        ON statement.CURRENT_SCHEMA = summary.SCHEMA_NAME
+       AND statement.digest = summary.digest
 WHERE
     thread.processlist_state IS NOT NULL
     AND thread.processlist_command NOT IN ('Sleep', 'Daemon')
