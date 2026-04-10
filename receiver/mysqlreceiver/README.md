@@ -27,13 +27,16 @@ behavior accordingly.
 
 ### Supported database versions
 
-| Product | Versions | Query plans on `db.server.top_query` |
-|---------|----------|--------------------------------------|
-| MySQL | 5.6 | No |
-| MySQL | 5.7 | No |
-| MySQL | 8.0+ | Yes |
-| MariaDB | 10.6+ | No |
-| MariaDB | 11.x | No |
+| Product | Versions | Query plans on `db.server.top_query` | Traceparent propagation | `client.port` / `network.peer.port` | Replica status syntax |
+|---------|----------|--------------------------------------|-------------------------|--------------------------------------|-----------------------|
+| MySQL | 5.6 | No | No | 0 (unavailable) | `SHOW SLAVE STATUS` |
+| MySQL | 5.7.x | No | 5.7.3+ | 0 (unavailable) | `SHOW SLAVE STATUS` |
+| MySQL | 8.0–8.0.21 | Yes | Yes | 0 (unavailable) | `SHOW SLAVE STATUS` |
+| MySQL | 8.0.22+ | Yes | Yes | Populated | `SHOW REPLICA STATUS` |
+| MariaDB | 10.x | No | 10.5.2+ | 0 (unavailable) | `SHOW SLAVE STATUS` |
+| MariaDB | 11.x | No | Yes | 0 (unavailable) | `SHOW SLAVE STATUS` |
+
+See [COMPATIBILITY.md](./COMPATIBILITY.md) for full details on version-gated behavior and fallbacks.
 
 Collecting most metrics requires the ability to execute `SHOW GLOBAL STATUS`.
 
