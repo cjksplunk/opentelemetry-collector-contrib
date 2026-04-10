@@ -743,16 +743,20 @@ func (m *mySQLScraper) scrapeQuerySamples(_ context.Context, now pcommon.Timesta
 		networkPeerAddress := ""
 		networkPeerPort := int64(0)
 
+		// performance_schema.threads.PROCESSLIST_HOST returns "host:port" format.
+		// Split to extract the address and port separately.
 		if sample.processlistHost != "" {
-			addr, port, err := net.SplitHostPort(sample.processlistHost)
-			if err != nil {
-				m.logger.Error("Failed to parse processlistHost value", zap.Error(err))
-				errs.AddPartial(1, err)
+			if host, portStr, splitErr := net.SplitHostPort(sample.processlistHost); splitErr == nil {
+				clientAddress = host
+				networkPeerAddress = host
+				if p, parseErr := strconv.ParseInt(portStr, 10, 64); parseErr == nil {
+					clientPort = p
+					networkPeerPort = p
+				}
 			} else {
-				clientAddress = addr
-				clientPort, _ = parseInt(port)
-				networkPeerAddress = addr
-				networkPeerPort, _ = parseInt(port)
+				// No port present — use the value as-is.
+				clientAddress = sample.processlistHost
+				networkPeerAddress = sample.processlistHost
 			}
 		}
 
