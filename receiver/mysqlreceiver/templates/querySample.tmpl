@@ -33,7 +33,40 @@ SELECT
             IF(wait.event_id = wait.end_event_id, 'CPU', wait.event_name)), 'CPU'
         )
     ) AS wait_event,
-    COALESCE(wait.timer_wait/1e12, 0) AS wait_time_seconds,
+    COALESCE(
+        -- Tier 1: completed wait event — TIMER_WAIT is populated (exact, picosecond precision)
+        wait.timer_wait / 1e12,
+
+        -- Tier 2: in-progress wait — approximate elapsed time from PS timers (sub-second).
+        -- statement.TIMER_WAIT is live for in-progress statements on MySQL 5.7+/8.0+.
+        -- On MariaDB, statement.TIMER_WAIT may be 0 or stale during active execution,
+        -- so the guard (statement.timer_wait > 0) causes MariaDB to fall through to Tier 3.
+        -- Math: statement.TIMER_START + statement.TIMER_WAIT ≈ current PS clock, so
+        -- elapsed_wait = current_ps_time - wait.TIMER_START. Clamped via GREATEST to
+        -- guard against microsecond read-order skew.
+        CASE
+            WHEN wait.end_event_id IS NULL
+                 AND wait.timer_start IS NOT NULL
+                 AND statement.timer_start IS NOT NULL
+                 AND statement.timer_wait > 0
+            THEN GREATEST(
+                     (statement.timer_start + statement.timer_wait - wait.timer_start) / 1e12,
+                     0)
+            ELSE NULL
+        END,
+
+        -- Tier 3: processlist_time fallback (integer second precision).
+        -- threads.PROCESSLIST_TIME resets on each processlist_state change, so it
+        -- represents elapsed seconds in the current state — semantically correct for
+        -- lock/IO waits. Always available on MySQL 5.7+ and all MariaDB 10.x.
+        CASE
+            WHEN wait.thread_id IS NOT NULL AND wait.end_event_id IS NULL
+            THEN CAST(thread.processlist_time AS DECIMAL(20, 6))
+            ELSE NULL
+        END,
+
+        0
+    ) AS wait_time_seconds,
     -- Extension: Get @traceparent from user_variables_by_thread.
     -- This table is available on MySQL 5.7.3+ and MariaDB 10.5.2+.
     -- Use CONVERT for MySQL 8.0+ which stores user variables as binary (VARBINARY);

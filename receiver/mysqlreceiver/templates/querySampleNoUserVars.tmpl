@@ -33,7 +33,25 @@ SELECT
             IF(wait.event_id = wait.end_event_id, 'CPU', wait.event_name)), 'CPU'
         )
     ) AS wait_event,
-    COALESCE(wait.timer_wait/1e12, 0) AS wait_time_seconds,
+    COALESCE(
+        -- Tier 1: completed wait event — TIMER_WAIT is populated (exact, picosecond precision)
+        wait.timer_wait / 1e12,
+
+        -- Tier 2 is omitted: this template has no events_statements_current join,
+        -- so the PS timer approximation is not available.
+
+        -- Tier 3: processlist_time fallback (integer second precision).
+        -- threads.PROCESSLIST_TIME resets on each processlist_state change, so it
+        -- represents elapsed seconds in the current state — semantically correct for
+        -- lock/IO waits. Always available on MySQL 5.7+ and all MariaDB 10.x.
+        CASE
+            WHEN wait.thread_id IS NOT NULL AND wait.end_event_id IS NULL
+            THEN CAST(thread.processlist_time AS DECIMAL(20, 6))
+            ELSE NULL
+        END,
+
+        0
+    ) AS wait_time_seconds,
     -- user_variables_by_thread is not available on MySQL <5.7.3 or MariaDB <10.5.2.
     -- Traceparent propagation is disabled for these versions.
     '' AS traceparent
