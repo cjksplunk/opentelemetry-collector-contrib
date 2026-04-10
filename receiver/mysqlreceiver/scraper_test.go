@@ -592,7 +592,7 @@ func (c *mockClient) getReplicaStatusStats(_ bool) ([]replicaStatusStats, error)
 }
 
 // Generate a function for getQuerySamples to read data from a static file
-func (c *mockClient) getQuerySamples(uint64, bool) ([]querySample, error) {
+func (c *mockClient) getQuerySamples(uint64, bool, bool) ([]querySample, error) {
 	var samples []querySample
 	file, err := os.Open(filepath.Join("testdata", "scraper", c.querySamplesFile+".txt"))
 	if err != nil {
@@ -608,17 +608,21 @@ func (c *mockClient) getQuerySamples(uint64, bool) ([]querySample, error) {
 		s.sessionID, _ = parseInt(text[0])
 		s.threadID, _ = parseInt(text[1])
 		s.processlistUser = text[2]
-		s.processlistHostPort = text[3]
-		s.processlistDB = text[4]
-		s.processlistCommand = text[5]
-		s.processlistState = text[6]
-		s.sqlText = text[7]
-		s.digest = text[8]
-		s.eventID, _ = parseInt(text[9])
-		s.sessionStatus = text[10]
-		s.waitEvent = text[11]
-		s.waitTime, _ = strconv.ParseFloat(text[12], 64)
-		s.traceparent = text[13]
+		s.processlistHost = text[3]
+		p, _ := strconv.ParseUint(text[4], 10, 64)
+		s.clientPort = p
+		s.processlistDB = text[5]
+		s.processlistCommand = text[6]
+		s.processlistState = text[7]
+		s.sqlText = text[8]
+		s.digest = text[9]
+		s.eventID, _ = parseInt(text[10])
+		s.sessionStatus = text[11]
+		s.waitEvent = text[12]
+		s.waitTime, _ = strconv.ParseFloat(text[13], 64)
+		if len(text) > 14 {
+			s.traceparent = text[14]
+		}
 
 		samples = append(samples, s)
 	}

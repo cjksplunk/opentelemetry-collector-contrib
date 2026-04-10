@@ -597,7 +597,7 @@ func TestVersionCompatibility(t *testing.T) {
 			// --- getQuerySamples: must succeed without error ---
 			// Proves the correct template (with or without user_variables_by_thread join)
 			// was chosen for this server version. Result may be empty if no active sessions.
-			_, err = c.getQuerySamples(10, dv.supportsUserVariablesByThread())
+			_, err = c.getQuerySamples(10, dv.supportsUserVariablesByThread(), dv.supportsProcesslist())
 			require.NoError(t, err, "getQuerySamples should not fail (wrong template would cause 'unknown table' error)")
 
 			// --- getReplicaStatusStats: must succeed without error ---

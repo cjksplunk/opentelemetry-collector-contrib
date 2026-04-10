@@ -7,7 +7,6 @@ import (
 	"container/heap"
 	"context"
 	"errors"
-	"net"
 	"sort"
 	"strconv"
 	"time"
@@ -792,7 +791,7 @@ func (m *mySQLScraper) scrapeTopQueries(now pcommon.Timestamp, errs *scrapererro
 }
 
 func (m *mySQLScraper) scrapeQuerySamples(_ context.Context, now pcommon.Timestamp, errs *scrapererror.ScrapeErrors) {
-	samples, err := m.sqlclient.getQuerySamples(m.config.QuerySampleCollection.MaxRowsPerQuery, m.detectedVersion.supportsUserVariablesByThread())
+	samples, err := m.sqlclient.getQuerySamples(m.config.QuerySampleCollection.MaxRowsPerQuery, m.detectedVersion.supportsUserVariablesByThread(), m.detectedVersion.supportsProcesslist())
 	if err != nil {
 		m.logger.Error("Failed to fetch query samples", zap.Error(err))
 		errs.AddPartial(1, err)
@@ -801,20 +800,8 @@ func (m *mySQLScraper) scrapeQuerySamples(_ context.Context, now pcommon.Timesta
 
 	for i := range samples {
 		sample := &samples[i]
-		// information_schema.PROCESSLIST.HOST returns "host:port" for TCP/IP connections.
-		// Unix socket connections return just the host with no port.
-		clientAddress, portStr, err := net.SplitHostPort(sample.processlistHostPort)
-		if err != nil {
-			// No port present (Unix socket or empty) — use the value as-is.
-			clientAddress = sample.processlistHostPort
-			portStr = ""
-		}
-		clientPort := int64(0)
-		if portStr != "" {
-			if p, err := strconv.ParseInt(portStr, 10, 64); err == nil {
-				clientPort = p
-			}
-		}
+		clientAddress := sample.processlistHost
+		clientPort := int64(sample.clientPort)
 		networkPeerAddress := clientAddress
 		networkPeerPort := clientPort
 

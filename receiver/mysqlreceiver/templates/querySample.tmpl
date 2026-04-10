@@ -2,7 +2,15 @@ SELECT
     thread.processlist_id AS session_id,
     thread.thread_id AS internal_thread_id,
     COALESCE(thread.processlist_user, '') AS session_user,
-    COALESCE(pl.HOST, '') AS client_address,
+    COALESCE(
+        {{- if .supportsProcesslist}} SUBSTRING_INDEX(pl.HOST, ':', 1),{{- end}}
+        thread.processlist_host, ''
+    ) AS client_address,
+    {{- if .supportsProcesslist}}
+    COALESCE(CAST(SUBSTRING_INDEX(pl.HOST, ':', -1) AS UNSIGNED), 0) AS client_port,
+    {{- else}}
+    0 AS client_port,
+    {{- end}}
     COALESCE(thread.processlist_db, '') AS current_database,
     COALESCE(thread.processlist_command, '') AS session_command,
     COALESCE(thread.processlist_state, '') AS session_state,
@@ -41,9 +49,12 @@ FROM
     -- Both MySQL and MariaDB store user variable names in lowercase in VARIABLE_NAME
     -- regardless of how the client spelled them, so '= traceparent' matches any case.
     LEFT JOIN performance_schema.user_variables_by_thread AS uvt ON uvt.thread_id = thread.thread_id AND uvt.VARIABLE_NAME = 'traceparent'
-    -- information_schema.PROCESSLIST.HOST contains host:port for TCP/IP connections,
-    -- unlike performance_schema.threads.processlist_host which is host-only.
-    LEFT JOIN information_schema.PROCESSLIST AS pl ON pl.ID = thread.PROCESSLIST_ID
+    {{- if .supportsProcesslist}}
+    -- performance_schema.processlist.HOST returns "host:port" for TCP/IP connections,
+    -- enabling population of client.port. Available MySQL 8.0.22+; lock-free unlike
+    -- information_schema.PROCESSLIST (which was removed in MySQL 9.0).
+    LEFT JOIN performance_schema.processlist AS pl ON pl.ID = thread.PROCESSLIST_ID
+    {{- end}}
 WHERE
     thread.processlist_state IS NOT NULL
     AND thread.processlist_command NOT IN ('Sleep', 'Daemon')

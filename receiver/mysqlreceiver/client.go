@@ -100,6 +100,26 @@ func (v dbVersion) supportsReplicaStatus() bool {
 	return v.product == dbProductMySQL && !v.version.LessThan(minMySQLReplicaStatusVersion)
 }
 
+// supportsProcesslist reports whether performance_schema.processlist is available
+// (MySQL 8.0.22+). This table exposes HOST as "host:port" for TCP/IP connections,
+// enabling population of client.port and network.peer.port on query sample events.
+//
+// The only alternative source that exposes host:port is information_schema.PROCESSLIST,
+// but it is not used: its implementation iterates active threads while holding a global
+// mutex (same as SHOW PROCESSLIST), which has negative performance consequences on busy
+// systems. It was also deprecated in MySQL 8.0, removed in MySQL 9.0, and was already
+// removed from this receiver in a prior change. performance_schema.processlist is
+// lock-free and reads directly from Performance Schema data structures.
+//
+// As a result, client.port and network.peer.port remain 0 on MariaDB (all versions)
+// and MySQL < 8.0.22, where this table is not available.
+func (v dbVersion) supportsProcesslist() bool {
+	if !v.isValid() {
+		return false
+	}
+	return v.product == dbProductMySQL && !v.version.LessThan(minMySQLReplicaStatusVersion)
+}
+
 type client interface {
 	Connect() error
 	getDBVersion() dbVersion
@@ -117,7 +137,9 @@ type client interface {
 	getTopQueries(topN, lookback uint64, supportsSampleText bool) ([]topQuery, error)
 	// supportsUserVarsByThread controls query-sample template selection for
 	// traceparent propagation (MySQL 5.7.3+ / MariaDB 10.5.2+ vs fallback).
-	getQuerySamples(limit uint64, supportsUserVarsByThread bool) ([]querySample, error)
+	// supportsProcesslist controls whether the performance_schema.processlist JOIN
+	// is included to populate client.port and network.peer.port (MySQL 8.0.22+).
+	getQuerySamples(limit uint64, supportsUserVarsByThread, supportsProcesslist bool) ([]querySample, error)
 	explainQuery(digestText, sampleStatement, schema, digest string, logger *zap.Logger) string
 	Close() error
 }
@@ -285,20 +307,21 @@ type replicaStatusStats struct {
 }
 
 type querySample struct {
-	sessionID           int64
-	threadID            int64
-	processlistUser     string
-	processlistHostPort string
-	processlistDB       string
-	processlistCommand  string
-	processlistState    string
-	sqlText             string
-	digest              string
-	eventID             int64
-	sessionStatus       string
-	waitEvent           string
-	waitTime            float64
-	traceparent         string
+	sessionID          int64
+	threadID           int64
+	processlistUser    string
+	processlistHost    string
+	clientPort         uint64
+	processlistDB      string
+	processlistCommand string
+	processlistState   string
+	sqlText            string
+	digest             string
+	eventID            int64
+	sessionStatus      string
+	waitEvent          string
+	waitTime           float64
+	traceparent        string
 }
 
 type topQuery struct {
@@ -895,7 +918,7 @@ var querySampleTemplate string
 //go:embed templates/querySampleNoUserVars.tmpl
 var querySampleNoUserVarsTemplate string
 
-func (c *mySQLClient) getQuerySamples(limit uint64, supportsUserVarsByThread bool) ([]querySample, error) {
+func (c *mySQLClient) getQuerySamples(limit uint64, supportsUserVarsByThread, supportsProcesslist bool) ([]querySample, error) {
 	// Select the appropriate template based on version support.
 	// MySQL <5.7.3 and MariaDB <10.5.2 lack performance_schema.user_variables_by_thread,
 	// which is required for traceparent propagation. Use the fallback template for those
@@ -909,7 +932,8 @@ func (c *mySQLClient) getQuerySamples(limit uint64, supportsUserVarsByThread boo
 	buf := bytes.Buffer{}
 
 	if err := tmpl.Execute(&buf, map[string]any{
-		"limit": limit,
+		"limit":               limit,
+		"supportsProcesslist": supportsProcesslist,
 	}); err != nil {
 		return nil, fmt.Errorf("failed to execute template: %w", err)
 	}
@@ -928,7 +952,8 @@ func (c *mySQLClient) getQuerySamples(limit uint64, supportsUserVarsByThread boo
 			&s.sessionID,
 			&s.threadID,
 			&s.processlistUser,
-			&s.processlistHostPort,
+			&s.processlistHost,
+			&s.clientPort,
 			&s.processlistDB,
 			&s.processlistCommand,
 			&s.processlistState,
