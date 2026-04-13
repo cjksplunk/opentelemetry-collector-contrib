@@ -26,7 +26,7 @@ SELECT
         )
     ) AS wait_event,
     COALESCE(wait.timer_wait/1e12, 0) AS wait_time_seconds,
-    COALESCE(statement.TIMER_WAIT/1e12, 0) AS statement_timer_wait_seconds,
+    COALESCE(statement.TIMER_WAIT/1e12, thread.processlist_time, 0) AS statement_timer_wait_seconds,
     -- Extension: Get @traceparent from user_variables_by_thread
     -- Use CONVERT for MySQL 8.0 which stores user variables as binary.
     -- utf8mb4 is used instead of the deprecated utf8 alias.
