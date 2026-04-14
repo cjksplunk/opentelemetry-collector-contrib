@@ -3,14 +3,13 @@ SELECT
     thread.thread_id AS internal_thread_id,
     COALESCE(thread.processlist_user, '') AS session_user,
     COALESCE(
-        {{- if .supportsProcesslist}} SUBSTRING_INDEX(pl.HOST, ':', 1),{{- end}}
+        {{- if .supportsProcesslist}} pl.HOST,{{- end}}
         thread.processlist_host, ''
     ) AS client_address,
-    {{- if .supportsProcesslist}}
-    COALESCE(CAST(SUBSTRING_INDEX(pl.HOST, ':', -1) AS UNSIGNED), 0) AS client_port,
-    {{- else}}
+    -- client_port is parsed from client_address in Go using net.SplitHostPort,
+    -- which handles both IPv4 (host:port) and IPv6 ([::1]:port) formats correctly.
+    -- pl.HOST contains "host:port" for TCP/IP connections on MySQL 8.0.22+.
     0 AS client_port,
-    {{- end}}
     COALESCE(thread.processlist_db, '') AS current_database,
     COALESCE(thread.processlist_command, '') AS session_command,
     COALESCE(thread.processlist_state, '') AS session_state,

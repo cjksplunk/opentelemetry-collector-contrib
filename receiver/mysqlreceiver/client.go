@@ -9,6 +9,8 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
+	"net"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -967,6 +969,18 @@ func (c *mySQLClient) getQuerySamples(limit uint64, supportsUserVarsByThread, su
 		)
 		if err != nil {
 			return nil, err
+		}
+
+		// pl.HOST from performance_schema.processlist uses "host:port" for IPv4 and
+		// "[::1]:port" for IPv6, both parseable by net.SplitHostPort. When processlist
+		// is not joined (supportsProcesslist=false), processlistHost is a bare hostname
+		// from thread.processlist_host and SplitHostPort will return an error — in that
+		// case we leave processlistHost as-is and clientPort as 0.
+		if host, portStr, splitErr := net.SplitHostPort(s.processlistHost); splitErr == nil {
+			if port, parseErr := strconv.ParseUint(portStr, 10, 64); parseErr == nil {
+				s.processlistHost = host
+				s.clientPort = port
+			}
 		}
 
 		samples = append(samples, s)
