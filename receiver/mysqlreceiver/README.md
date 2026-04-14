@@ -149,3 +149,44 @@ that statement on all versions. Truncation is controlled by
 | `max_digest_length`                      | `4096`  (Recommended)            | Maximum length of digest text                       |
 | `performance_schema_max_digest_length`   | `4096`  (Recommended)            | Maximum length of digest text on performance schema |
 | `performance_schema_max_sql_text_length` | `4096`  (Recommended)            | Maximum length of sql text                          |
+
+### Enabling `events_waits_current` for lock-wait duration
+
+The `mysql.events_waits_current.timer_wait` attribute on `db.server.query_sample` events is
+populated from `performance_schema.events_waits_current`. That consumer is **disabled by default**
+on all supported platforms. Without it, `timer_wait` is always `0`.
+
+#### Required privilege
+
+The database user must have `UPDATE` on `performance_schema.setup_consumers` in addition to the
+`SELECT` grant above:
+
+```sql
+GRANT SELECT ON performance_schema.* TO '<your-user>'@'%';
+GRANT UPDATE ON performance_schema.setup_consumers TO '<your-user>'@'%';
+```
+
+#### Enabling the consumer
+
+**Manual server (MySQL 5.7 / 8.x / MariaDB) — persistent across restarts**
+
+Add to `[mysqld]` in `my.cnf` / `my.ini`:
+
+```ini
+performance-schema-consumer-events-waits-current=ON
+```
+
+**AWS RDS (MySQL 5.7 / 8.x / MariaDB) — runtime only**
+
+AWS RDS does not expose `performance-schema-consumer-events-waits-current` as a parameter group
+setting. The consumer must be enabled at runtime and will reset on instance restart or failover:
+
+```sql
+UPDATE performance_schema.setup_consumers
+SET ENABLED = 'YES'
+WHERE NAME = 'events_waits_current';
+```
+
+Run this statement after each restart, or grant the receiver user `UPDATE` on
+`performance_schema.setup_consumers` so that the receiver can re-enable it automatically on
+reconnect.

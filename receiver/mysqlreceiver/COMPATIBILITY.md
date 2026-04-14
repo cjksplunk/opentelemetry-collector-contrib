@@ -27,3 +27,47 @@ Query sample duration is resolved in order. The first tier that produces a value
 - Failure is **non-fatal**: `dbVersion` stays at its zero value and `Connect()` returns `nil`. All capability predicates return `false`, which produces MySQL <8 fallback behavior.
 - The `dbVersion` struct holds two fields: `product` (MySQL or MariaDB) and `version` (semver).
 - Connection errors surface on the first scrape, not at connect time.
+
+## Tested Platforms
+
+The following product/version/platform combinations have been validated against a live deployment. Each row reflects the capability matrix observed for that exact configuration.
+
+- **Exact Version** — the full string returned by `SELECT VERSION()` on the tested instance
+- **Platform** — deployment type and instance class (e.g. `AWS RDS db.t3.micro`, `Docker 27.x`, `bare metal`)
+- **Date** — date live validation passed
+
+| Product | Series | Exact Version | Platform | `supportsQuerySampleText` | `supportsUserVariablesByThread` | `supportsProcesslist` | `supportsReplicaStatus` | Timer Wait Tiers | Date |
+|---|---|---|---|---|---|---|---|---|---|
+| MySQL | 8.0 | | AWS RDS | ✓ | ✓ | ✓ | ✓ | 1, 2, 3 | |
+| MySQL | 5.7 | | AWS RDS | ✗ | ✓ | ✗ | ✗ | 1, 2, 3 | |
+| MariaDB | 10.5 | | AWS RDS | ✗ | ✓ | ✗ | ✗ | 1, 3 | |
+
+**Legend:**
+- ✓ = capability enabled
+- ✗ = capability disabled (fallback behavior active)
+
+## `events_waits_current` Consumer
+
+The `mysql.events_waits_current.timer_wait` attribute requires the `events_waits_current`
+Performance Schema consumer. This consumer is **disabled by default** on all supported platforms,
+including AWS RDS.
+
+### Enablement by platform
+
+| Platform | Method | Persistent? |
+|---|---|---|
+| MySQL / MariaDB — manual server | `performance-schema-consumer-events-waits-current=ON` in `[mysqld]` (`my.cnf`) | Yes |
+| AWS RDS — MySQL / MariaDB | `UPDATE performance_schema.setup_consumers SET ENABLED='YES' WHERE NAME='events_waits_current'` | No — resets on restart/failover |
+
+AWS RDS does not expose this as a parameter group setting. The runtime `UPDATE` must be re-applied
+after each restart. The receiver user needs `UPDATE ON performance_schema.setup_consumers` for this.
+
+### Expected behavior once enabled
+
+| Product | Timer Wait Tier Used | Notes |
+|---|---|---|
+| MySQL 5.7 | Tier 1 or 2 | Tier 1 if wait has completed; Tier 2 (PS timer approximation) if wait is in progress |
+| MySQL 8.x | Tier 1 or 2 | Same as 5.7 |
+| MariaDB 10.x | Tier 1 or 3 | Tier 2 is not used — MariaDB `statement.TIMER_WAIT` is stale during active execution; falls through to integer-second `processlist_time` |
+
+See the Timer Wait Tiers section above for tier definitions.
