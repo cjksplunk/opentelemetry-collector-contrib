@@ -289,6 +289,38 @@ func TestScrapeQuerySamplesTraceparent(t *testing.T) {
 	})
 }
 
+func TestScrapeQuerySamplesMalformedHost(t *testing.T) {
+	cfg := createDefaultConfig().(*Config)
+	cfg.Username = "otel"
+	cfg.Password = "otel"
+	cfg.AddrConfig = confignet.AddrConfig{Endpoint: "localhost:3306"}
+	cfg.LogsBuilderConfig.Events.DbServerQuerySample.Enabled = true
+
+	core, logs := observer.New(zapcore.WarnLevel)
+	scraper := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](100), newTTLCache[string](0, time.Hour*24*365*10))
+	scraper.logger = zap.New(core)
+	scraper.sqlclient = &mockClient{querySamplesFile: "query_samples_malformed_host"}
+
+	result, err := scraper.scrapeQuerySampleFunc(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, 1, result.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().Len())
+	record := result.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
+
+	// Malformed host must not be forwarded into address or port attributes.
+	// The generated builder always emits these attributes; for a malformed host they must be empty/zero.
+	clientAddr, _ := record.Attributes().Get("client.address")
+	assert.Empty(t, clientAddr.Str(), "client.address must be empty for unparsable processlistHost")
+	netPeer, _ := record.Attributes().Get("network.peer.address")
+	assert.Empty(t, netPeer.Str(), "network.peer.address must be empty for unparsable processlistHost")
+	clientPort, _ := record.Attributes().Get("client.port")
+	assert.Equal(t, int64(0), clientPort.Int(), "client.port must be 0 for unparsable processlistHost")
+	netPeerPort, _ := record.Attributes().Get("network.peer.port")
+	assert.Equal(t, int64(0), netPeerPort.Int(), "network.peer.port must be 0 for unparsable processlistHost")
+
+	// A warn log must be produced.
+	require.Equal(t, 1, logs.FilterMessage("Failed to parse processlistHost").Len(), "expected one warn log for malformed processlistHost")
+}
+
 var _ client = (*mockClient)(nil)
 
 type mockClient struct {
