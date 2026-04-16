@@ -4,8 +4,12 @@
 package mysqlreceiver
 
 import (
+	"database/sql"
 	"testing"
+	"time"
 
+	// registers the mysql driver for TestFetchDBVersionTimeout
+	_ "github.com/go-sql-driver/mysql"
 	version "github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -337,6 +341,24 @@ func TestGetDBVersionCaching(t *testing.T) {
 	got := c.getDBVersion()
 	assert.Equal(t, preloaded.product, got.product)
 	assert.Equal(t, preloaded.version.String(), got.version.String())
+}
+
+func TestFetchDBVersionTimeout(t *testing.T) {
+	// fetchDBVersion must return before its own internal timeout.
+	// 192.0.2.1 is TEST-NET — guaranteed unreachable, so QueryRowContext
+	// will block until the context deadline fires.
+	db, err := sql.Open("mysql", "root:@tcp(192.0.2.1:3306)/")
+	require.NoError(t, err)
+	defer db.Close()
+
+	c := &mySQLClient{client: db}
+
+	start := time.Now()
+	_, err = c.fetchDBVersion()
+	elapsed := time.Since(start)
+
+	require.Error(t, err, "expected timeout error from unreachable host")
+	assert.Less(t, elapsed, 10*time.Second, "fetchDBVersion must not block longer than its own timeout")
 }
 
 // TestDBVersionHelperMethods verifies isValid and productString across all product/version combinations.

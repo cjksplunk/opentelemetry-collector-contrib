@@ -397,10 +397,15 @@ func (c *mySQLClient) Connect() error {
 }
 
 // fetchDBVersion queries the database for its version string and parses it
-// into a dbVersion. Called once during Connect.
+// into a dbVersion. Called once during Connect. A short context timeout
+// prevents a blackholed or slow endpoint from stalling collector startup.
 func (c *mySQLClient) fetchDBVersion() (dbVersion, error) {
+	const versionDetectTimeout = 5 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), versionDetectTimeout)
+	defer cancel()
+
 	var versionStr string
-	if err := c.client.QueryRow("SELECT VERSION();").Scan(&versionStr); err != nil {
+	if err := c.client.QueryRowContext(ctx, "SELECT VERSION();").Scan(&versionStr); err != nil {
 		return dbVersion{}, err
 	}
 	return parseDBVersion(versionStr)
