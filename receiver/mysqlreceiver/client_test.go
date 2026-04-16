@@ -309,14 +309,22 @@ func TestParseDBVersion(t *testing.T) {
 		wantVersion string
 		wantErr     bool
 	}{
+		// MySQL variants (unchanged)
 		{"8.0.33", dbProductMySQL, "8.0.33", false},
 		{"5.7.44", dbProductMySQL, "5.7.44", false},
 		{"5.6.51", dbProductMySQL, "5.6.51", false},
 		// MySQL sometimes appends suffixes like "-log"
 		{"8.0.22-log", dbProductMySQL, "8.0.22", false},
-		// MariaDB includes "MariaDB" in the version string
+		// Standard MariaDB
 		{"10.11.6-MariaDB", dbProductMariaDB, "10.11.6", false},
 		{"11.4.2-MariaDB", dbProductMariaDB, "11.4.2", false},
+		// MariaDB with MySQL 5.5.5 compatibility prefix (common in older MariaDB 10.x)
+		{"5.5.5-10.11.6-MariaDB", dbProductMariaDB, "10.11.6", false},
+		{"5.5.5-10.6.14-MariaDB", dbProductMariaDB, "10.6.14", false},
+		// MariaDB with Debian/Ubuntu package decoration
+		{"10.6.14-MariaDB-1:10.6.14+maria~ubu2204", dbProductMariaDB, "10.6.14", false},
+		// MariaDB with -log suffix
+		{"10.11.6-MariaDB-log", dbProductMariaDB, "10.11.6", false},
 		// Malformed input
 		{"not-a-version", dbProductMySQL, "", true},
 	}

@@ -10,6 +10,7 @@ import (
 	_ "embed"
 	"fmt"
 	"net"
+	"regexp"
 	"strconv"
 	"strings"
 	"text/template"
@@ -411,22 +412,47 @@ func (c *mySQLClient) fetchDBVersion() (dbVersion, error) {
 	return parseDBVersion(versionStr)
 }
 
+// mariaDBVersionRe extracts the leading semver triplet from a MariaDB VERSION()
+// string after the optional MySQL-compat "5.5.5-" prefix has been stripped.
+// Examples handled:
+//   - "10.11.6-MariaDB"                          → "10.11.6"
+//   - "5.5.5-10.11.6-MariaDB"                    → "10.11.6"
+//   - "10.6.14-MariaDB-1:10.6.14+maria~ubu2204"  → "10.6.14"
+//   - "10.11.6-MariaDB-log"                      → "10.11.6"
+var mariaDBVersionRe = regexp.MustCompile(`^(\d+\.\d+\.\d+)`)
+
+// mysqlCompatPrefix is prepended by older MariaDB 10.x builds to fool
+// MySQL clients that require a version >= 5.5.5. Strip it before parsing.
+const mysqlCompatPrefix = "5.5.5-"
+
 // parseDBVersion parses a raw VERSION() string into a dbVersion.
-// MariaDB reports versions like "10.11.6-MariaDB"; the "-MariaDB" suffix is
-// stripped before semver parsing so the version library handles it cleanly.
+//
+// MySQL strings (no "MariaDB" substring): the semver is everything before the
+// first "-" (handles suffixes like "-log").
+//
+// MariaDB strings: strip the optional MySQL-compat "5.5.5-" prefix, then
+// extract the leading dotted-decimal triplet via regex.
 func parseDBVersion(versionStr string) (dbVersion, error) {
-	product := dbProductMySQL
 	if strings.Contains(versionStr, "MariaDB") {
-		product = dbProductMariaDB
+		s := strings.TrimPrefix(versionStr, mysqlCompatPrefix)
+		m := mariaDBVersionRe.FindStringSubmatch(s)
+		if m == nil {
+			return dbVersion{}, fmt.Errorf("failed to parse MariaDB version %q: no semver found", versionStr)
+		}
+		v, err := version.NewVersion(m[1])
+		if err != nil {
+			return dbVersion{}, fmt.Errorf("failed to parse MariaDB version %q: %w", versionStr, err)
+		}
+		return dbVersion{product: dbProductMariaDB, version: v}, nil
 	}
 
+	// MySQL: strip any suffix after the first "-"
 	semverStr := strings.SplitN(versionStr, "-", 2)[0]
 	v, err := version.NewVersion(semverStr)
 	if err != nil {
 		return dbVersion{}, fmt.Errorf("failed to parse db version %q: %w", versionStr, err)
 	}
-
-	return dbVersion{product: product, version: v}, nil
+	return dbVersion{product: dbProductMySQL, version: v}, nil
 }
 
 // getDBVersion returns the cached database version established during Connect.
