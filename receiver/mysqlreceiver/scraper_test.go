@@ -287,6 +287,21 @@ func TestScrapeQuerySamplesTraceparent(t *testing.T) {
 		assert.Equal(t, pcommon.TraceID{}, record.TraceID(), "TraceID must be zero when traceparent is invalid")
 		assert.Equal(t, pcommon.SpanID{}, record.SpanID(), "SpanID must be zero when traceparent is invalid")
 	})
+
+	t.Run("bare IP processlistHost logs error, record still emitted, no client address attrs", func(t *testing.T) {
+		core, observedLogs := observer.New(zapcore.ErrorLevel)
+		scraper := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](100), newTTLCache[string](0, time.Hour*24*365*10))
+		scraper.logger = zap.New(core)
+		scraper.sqlclient = &mockClient{querySamplesFile: "query_samples_bare_host"}
+
+		result, err := scraper.scrapeQuerySampleFunc(t.Context())
+		require.NoError(t, err)
+		require.Equal(t, 1, observedLogs.FilterMessage("Failed to parse processlistHost value").Len(), "expected one error log for bare IP")
+		require.Equal(t, 1, result.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().Len(), "record must still be emitted")
+		attrs := result.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0).Attributes()
+		clientAddr, _ := attrs.Get("client.address")
+		assert.Equal(t, "", clientAddr.Str(), "client.address must be empty when processlistHost cannot be parsed")
+	})
 }
 
 var _ client = (*mockClient)(nil)
