@@ -6,8 +6,7 @@ This document lists every version-gated capability in the MySQL receiver. Versio
 
 | Predicate | Minimum Version | Fallback Behavior |
 |---|---|---|
-| `supportsQuerySampleText()` | MySQL 8.0+ | Top-query scraper omits `EXPLAIN`; `querySampleNoUserVars.tmpl` is used for SQL text |
-| `supportsUserVariablesByThread()` | MySQL 5.7.3+ / MariaDB 10.5.2+ | `querySampleNoUserVars.tmpl` is used; `@traceparent` extraction is disabled; trace propagation is not available |
+| `supportsQuerySampleText()` | MySQL 8.0.3+ | Top-query scraper uses 5-column fallback template (`topQueryNoSampleText.tmpl`); `querySampleText` is empty and `EXPLAIN` is skipped |
 | `supportsReplicaStatus()` | MySQL 8.0.22+ | `SHOW SLAVE STATUS` is used instead of `SHOW REPLICA STATUS` |
 | `supportsProcesslist()` | MySQL 8.0.22+ | `client.port` and `network.peer.port` remain `0`; `information_schema.PROCESSLIST` is **not** used as a fallback (it holds a global mutex, was deprecated in MySQL 8.0, removed in MySQL 9.0, and has already been removed from this receiver) |
 
@@ -36,11 +35,11 @@ The following product/version/platform combinations have been validated against 
 - **Platform** — deployment type and instance class (e.g. `AWS RDS db.t3.micro`, `Docker 27.x`, `bare metal`)
 - **Date** — date live validation passed
 
-| Product | Series | Exact Version | Platform | `supportsQuerySampleText` | `supportsUserVariablesByThread` | `supportsProcesslist` | `supportsReplicaStatus` | Timer Wait Tiers | Date |
-|---|---|---|---|---|---|---|---|---|---|
-| MySQL | 8.0 | | AWS RDS | ✓ | ✓ | ✓ | ✓ | 1, 2, 3 | |
-| MySQL | 5.7 | | AWS RDS | ✗ | ✓ | ✗ | ✗ | 1, 2, 3 | |
-| MariaDB | 10.5 | | AWS RDS | ✗ | ✓ | ✗ | ✗ | 1, 3 | |
+| Product | Series | Exact Version | Platform | `supportsQuerySampleText` | `supportsProcesslist` | `supportsReplicaStatus` | Timer Wait Tiers | Date |
+|---|---|---|---|---|---|---|---|---|
+| MySQL | 8.0 | | AWS RDS | ✓ | ✓ | ✓ | 1, 2, 3 | |
+| MySQL | 5.7 | | AWS RDS | ✗ | ✗ | ✗ | 1, 2, 3 | |
+| MariaDB | 10.5 | | AWS RDS | ✗ | ✗ | ✗ | 1, 3 | |
 
 **Legend:**
 - ✓ = capability enabled
