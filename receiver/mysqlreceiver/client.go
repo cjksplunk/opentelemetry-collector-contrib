@@ -56,41 +56,15 @@ func (v dbVersion) productString() string {
 
 // supportsQuerySampleText reports whether the server's
 // performance_schema.events_statements_summary_by_digest table includes the
-// query_sample_text column (MySQL 8.x+; absent on MySQL <8 and all MariaDB versions).
-// Note: query_sample_text was technically introduced in MySQL 8.0.3, but MySQL 8.0.0–8.0.2
-// were pre-GA milestone releases; the check uses major version only.
+// query_sample_text column, introduced in MySQL 8.0.3. Absent on MySQL <8.0.3
+// and all MariaDB versions.
+var minMySQLQuerySampleTextVersion = version.Must(version.NewVersion("8.0.3"))
+
 func (v dbVersion) supportsQuerySampleText() bool {
 	if !v.isValid() {
 		return false
 	}
-	return v.product == dbProductMySQL && v.version.Segments()[0] >= 8
-}
-
-// minMySQLUserVarsVersion is the MySQL version at which
-// performance_schema.user_variables_by_thread was introduced.
-var minMySQLUserVarsVersion = version.Must(version.NewVersion("5.7.3"))
-
-// minMariaDBUserVarsVersion is the MariaDB version at which
-// performance_schema.user_variables_by_thread was introduced.
-var minMariaDBUserVarsVersion = version.Must(version.NewVersion("10.5.2"))
-
-// supportsUserVariablesByThread reports whether the server's performance_schema
-// includes the user_variables_by_thread table, which is required for traceparent
-// propagation in query sample collection.
-// Available on MySQL 5.7.3+ and MariaDB 10.5.2+.
-//
-// Note: support for MySQL 5.6 and 5.7 is included for completeness but should be
-// considered deprecated — both versions have passed their official end-of-life dates.
-func (v dbVersion) supportsUserVariablesByThread() bool {
-	if !v.isValid() {
-		return false
-	}
-	switch v.product {
-	case dbProductMariaDB:
-		return !v.version.LessThan(minMariaDBUserVarsVersion)
-	default: // dbProductMySQL
-		return !v.version.LessThan(minMySQLUserVarsVersion)
-	}
+	return v.product == dbProductMySQL && !v.version.LessThan(minMySQLQuerySampleTextVersion)
 }
 
 // supportsReplicaStatus reports whether the server uses SHOW REPLICA STATUS
@@ -138,11 +112,9 @@ type client interface {
 	getReplicaStatusStats(supportsReplicaStatus bool) ([]replicaStatusStats, error)
 	// supportsSampleText controls top-query template selection (MySQL 8+ vs fallback).
 	getTopQueries(topN, lookback uint64, supportsSampleText bool) ([]topQuery, error)
-	// supportsUserVarsByThread controls query-sample template selection for
-	// traceparent propagation (MySQL 5.7.3+ / MariaDB 10.5.2+ vs fallback).
 	// supportsProcesslist controls whether the performance_schema.processlist JOIN
 	// is included to populate client.port and network.peer.port (MySQL 8.0.22+).
-	getQuerySamples(limit uint64, supportsUserVarsByThread, supportsProcesslist bool) ([]querySample, error)
+	getQuerySamples(limit uint64, supportsProcesslist bool) ([]querySample, error)
 	explainQuery(digestText, sampleStatement, schema, digest string, logger *zap.Logger) string
 	Close() error
 }
@@ -948,20 +920,8 @@ func (c *mySQLClient) getTopQueries(topNValue, lookbackTime uint64, supportsSamp
 //go:embed templates/querySample.tmpl
 var querySampleTemplate string
 
-//go:embed templates/querySampleNoUserVars.tmpl
-var querySampleNoUserVarsTemplate string
-
-func (c *mySQLClient) getQuerySamples(limit uint64, supportsUserVarsByThread, supportsProcesslist bool) ([]querySample, error) {
-	// Select the appropriate template based on version support.
-	// MySQL <5.7.3 and MariaDB <10.5.2 lack performance_schema.user_variables_by_thread,
-	// which is required for traceparent propagation. Use the fallback template for those
-	// versions, which omits the join and returns an empty traceparent.
-	tmplSrc := querySampleTemplate
-	if !supportsUserVarsByThread {
-		tmplSrc = querySampleNoUserVarsTemplate
-	}
-
-	tmpl := template.Must(template.New("querySample").Option("missingkey=error").Parse(tmplSrc))
+func (c *mySQLClient) getQuerySamples(limit uint64, supportsProcesslist bool) ([]querySample, error) {
+	tmpl := template.Must(template.New("querySample").Option("missingkey=error").Parse(querySampleTemplate))
 	buf := bytes.Buffer{}
 
 	if err := tmpl.Execute(&buf, map[string]any{

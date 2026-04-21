@@ -29,12 +29,18 @@ behavior accordingly.
 
 | Product | Versions | Query plans on `db.server.top_query` | Traceparent propagation | `client.port` / `network.peer.port` | Replica status syntax |
 |---------|----------|--------------------------------------|-------------------------|--------------------------------------|-----------------------|
-| MySQL | 5.6 | No | No | 0 (unavailable) | `SHOW SLAVE STATUS` |
-| MySQL | 5.7.x | No | 5.7.3+ | 0 (unavailable) | `SHOW SLAVE STATUS` |
-| MySQL | 8.0–8.0.21 | Yes | Yes | 0 (unavailable) | `SHOW SLAVE STATUS` |
+| MySQL | 5.7.x | No | Yes | 0 | `SHOW SLAVE STATUS` |
+| MySQL | 8.0.0–8.0.21 | Yes | Yes | 0 | `SHOW SLAVE STATUS` |
 | MySQL | 8.0.22+ | Yes | Yes | Populated | `SHOW REPLICA STATUS` |
-| MariaDB | 10.x | No | 10.5.2+ | 0 (unavailable) | `SHOW SLAVE STATUS` |
-| MariaDB | 11.x | No | Yes | 0 (unavailable) | `SHOW SLAVE STATUS` |
+| MySQL | 8.4.x | Yes | Yes | Populated | `SHOW REPLICA STATUS` |
+| MySQL | 9.x | Yes | Yes | Populated | `SHOW REPLICA STATUS` |
+| MariaDB | 10.5.x | No | Yes | 0 | `SHOW SLAVE STATUS` |
+| MariaDB | 10.6.x | No | Yes | 0 | `SHOW SLAVE STATUS` |
+| MariaDB | 10.11.x | No | Yes | 0 | `SHOW SLAVE STATUS` |
+| MariaDB | 11.1.x | No | Yes | 0 | `SHOW SLAVE STATUS` |
+| MariaDB | 11.2.x | No | Yes | 0 | `SHOW SLAVE STATUS` |
+| MariaDB | 11.4.x | No | Yes | 0 | `SHOW SLAVE STATUS` |
+| MariaDB | 11.6.x | No | Yes | 0 | `SHOW SLAVE STATUS` |
 
 See [COMPATIBILITY.md](./COMPATIBILITY.md) for full details on version-gated behavior and fallbacks.
 

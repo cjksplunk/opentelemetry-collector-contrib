@@ -199,8 +199,6 @@ func runPerfSchemaSetup(t *testing.T, cfg *Config) {
 //   - getDBVersion() correctly identifies MySQL vs MariaDB
 //   - scrapeTopQueryFunc uses the 6-column template on MySQL 8+ (query_sample_text present)
 //     and the 5-column fallback on MariaDB (no query_sample_text column)
-//   - scrapeQuerySampleFunc works on both, selecting the appropriate template based on
-//     whether user_variables_by_thread is available (MySQL 5.7.3+ / MariaDB 10.5.2+)
 //   - The shared plan cache is populated by scrapeTopQueryFunc so that
 //     scrapeQuerySampleFunc reuses cached plans without a second EXPLAIN call
 //
@@ -212,46 +210,40 @@ func runPerfSchemaSetup(t *testing.T, cfg *Config) {
 // sqlclient.getDBVersion) that are not reachable through the scraperinttest API.
 func TestIntegrationLogScraper(t *testing.T) {
 	testCases := []struct {
-		name                 string
-		image                string
-		wantSampleTextCol    bool
-		wantUserVarsByThread bool
-		wantEOLWarn          bool   // true ↔ logDetectedVersion should emit an EOL warning
-		wantProduct          string // expected db.product scope attribute value
+		name              string
+		image             string
+		wantSampleTextCol bool
+		wantEOLWarn       bool   // true ↔ logDetectedVersion should emit an EOL warning
+		wantProduct       string // expected db.product scope attribute value
 	}{
 		{
-			name:                 "MySQL-8.0.33-LogScraper",
-			image:                "mysql:8.0.33",
-			wantSampleTextCol:    true,
-			wantUserVarsByThread: true,
-			wantEOLWarn:          false,
-			wantProduct:          "MySQL",
+			name:              "MySQL-8.0.33-LogScraper",
+			image:             "mysql:8.0.33",
+			wantSampleTextCol: true,
+			wantEOLWarn:       false,
+			wantProduct:       "MySQL",
 		},
 		{
 			// mysql:5.7 has no official ARM64 image; this case is skipped on ARM hosts.
-			// It is the key boundary case for user_variables_by_thread (introduced 5.7.3).
-			name:                 "MySQL-5.7-LogScraper",
-			image:                "mysql:5.7",
-			wantSampleTextCol:    false,
-			wantUserVarsByThread: true,
-			wantEOLWarn:          true,
-			wantProduct:          "MySQL",
+			name:              "MySQL-5.7-LogScraper",
+			image:             "mysql:5.7",
+			wantSampleTextCol: false,
+			wantEOLWarn:       true,
+			wantProduct:       "MySQL",
 		},
 		{
-			name:                 "MariaDB-10.11-LogScraper",
-			image:                "mariadb:10.11",
-			wantSampleTextCol:    false,
-			wantUserVarsByThread: true,
-			wantEOLWarn:          false,
-			wantProduct:          "MariaDB",
+			name:              "MariaDB-10.11-LogScraper",
+			image:             "mariadb:10.11",
+			wantSampleTextCol: false,
+			wantEOLWarn:       false,
+			wantProduct:       "MariaDB",
 		},
 		{
-			name:                 "MariaDB-11.4-LogScraper",
-			image:                "mariadb:11.4",
-			wantSampleTextCol:    false,
-			wantUserVarsByThread: true,
-			wantEOLWarn:          false,
-			wantProduct:          "MariaDB",
+			name:              "MariaDB-11.4-LogScraper",
+			image:             "mariadb:11.4",
+			wantSampleTextCol: false,
+			wantEOLWarn:       false,
+			wantProduct:       "MariaDB",
 		},
 	}
 
@@ -448,7 +440,6 @@ func TestIntegrationLogScraper(t *testing.T) {
 			// Verify version detection on the scraper's client.
 			dv := scraper.sqlclient.getDBVersion()
 			assert.Equal(t, tc.wantSampleTextCol, dv.supportsQuerySampleText(), "supportsQuerySampleText mismatch")
-			assert.Equal(t, tc.wantUserVarsByThread, dv.supportsUserVariablesByThread(), "supportsUserVariablesByThread mismatch")
 		})
 	}
 }
@@ -457,8 +448,6 @@ func TestIntegrationLogScraper(t *testing.T) {
 // MySQL and MariaDB flavors, and that getTopQueries() and getQuerySamples() select
 // the right query templates:
 //   - getTopQueries: 6-column (query_sample_text) for MySQL 8+, 5-column fallback otherwise
-//   - getQuerySamples: user_variables_by_thread join for MySQL 5.7.3+ / MariaDB 10.5.2+,
-//     no-join fallback for older versions
 //
 // This test manages containers directly with testcontainers.GenericContainer rather
 // than using scraperinttest.NewIntegrationTest. scraperinttest validates metrics
@@ -468,47 +457,41 @@ func TestIntegrationLogScraper(t *testing.T) {
 // getQuerySamples) that are not reachable through the scraperinttest API.
 func TestVersionCompatibility(t *testing.T) {
 	testCases := []struct {
-		name                 string
-		image                string
-		wantProduct          dbProduct
-		wantSampleTextCol    bool // true ↔ 6-column top-query template used
-		wantUserVarsByThread bool // true ↔ user_variables_by_thread join used in query samples
-		wantReplicaStatus    bool // true ↔ SHOW REPLICA STATUS used instead of SHOW SLAVE STATUS
+		name              string
+		image             string
+		wantProduct       dbProduct
+		wantSampleTextCol bool // true ↔ 6-column top-query template used
+		wantReplicaStatus bool // true ↔ SHOW REPLICA STATUS used instead of SHOW SLAVE STATUS
 	}{
 		{
-			name:                 "MySQL 8.0.33",
-			image:                "mysql:8.0.33",
-			wantProduct:          dbProductMySQL,
-			wantSampleTextCol:    true,
-			wantUserVarsByThread: true,
-			wantReplicaStatus:    true,
+			name:              "MySQL 8.0.33",
+			image:             "mysql:8.0.33",
+			wantProduct:       dbProductMySQL,
+			wantSampleTextCol: true,
+			wantReplicaStatus: true,
 		},
 		{
 			// mysql:5.7 has no official ARM64 image; this case is skipped on
-			// ARM hosts (e.g. Apple Silicon). MySQL 5.7 supports user_variables_by_thread
-			// (introduced 5.7.3) but not query_sample_text.
-			name:                 "MySQL 5.7",
-			image:                "mysql:5.7",
-			wantProduct:          dbProductMySQL,
-			wantSampleTextCol:    false,
-			wantUserVarsByThread: true,
-			wantReplicaStatus:    false,
+			// ARM hosts (e.g. Apple Silicon). MySQL 5.7 does not support query_sample_text.
+			name:              "MySQL 5.7",
+			image:             "mysql:5.7",
+			wantProduct:       dbProductMySQL,
+			wantSampleTextCol: false,
+			wantReplicaStatus: false,
 		},
 		{
-			name:                 "MariaDB 10.11",
-			image:                "mariadb:10.11",
-			wantProduct:          dbProductMariaDB,
-			wantSampleTextCol:    false,
-			wantUserVarsByThread: true,
-			wantReplicaStatus:    false,
+			name:              "MariaDB 10.11",
+			image:             "mariadb:10.11",
+			wantProduct:       dbProductMariaDB,
+			wantSampleTextCol: false,
+			wantReplicaStatus: false,
 		},
 		{
-			name:                 "MariaDB 11.4",
-			image:                "mariadb:11.4",
-			wantProduct:          dbProductMariaDB,
-			wantSampleTextCol:    false,
-			wantUserVarsByThread: true,
-			wantReplicaStatus:    false,
+			name:              "MariaDB 11.4",
+			image:             "mariadb:11.4",
+			wantProduct:       dbProductMariaDB,
+			wantSampleTextCol: false,
+			wantReplicaStatus: false,
 		},
 	}
 
@@ -569,7 +552,6 @@ func TestVersionCompatibility(t *testing.T) {
 			dv := c.getDBVersion()
 			assert.Equal(t, tc.wantProduct, dv.product, "product mismatch")
 			assert.Equal(t, tc.wantSampleTextCol, dv.supportsQuerySampleText(), "supportsQuerySampleText mismatch")
-			assert.Equal(t, tc.wantUserVarsByThread, dv.supportsUserVariablesByThread(), "supportsUserVariablesByThread mismatch")
 			assert.Equal(t, tc.wantReplicaStatus, dv.supportsReplicaStatus(), "supportsReplicaStatus mismatch")
 
 			// --- getTopQueries: must succeed without error ---
@@ -595,9 +577,8 @@ func TestVersionCompatibility(t *testing.T) {
 			}
 
 			// --- getQuerySamples: must succeed without error ---
-			// Proves the correct template (with or without user_variables_by_thread join)
-			// was chosen for this server version. Result may be empty if no active sessions.
-			_, err = c.getQuerySamples(10, dv.supportsUserVariablesByThread(), dv.supportsProcesslist())
+			// Result may be empty if no active sessions.
+			_, err = c.getQuerySamples(10, dv.supportsProcesslist())
 			require.NoError(t, err, "getQuerySamples should not fail (wrong template would cause 'unknown table' error)")
 
 			// --- getReplicaStatusStats: must succeed without error ---

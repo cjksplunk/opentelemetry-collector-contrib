@@ -592,7 +592,7 @@ func (c *mockClient) getReplicaStatusStats(_ bool) ([]replicaStatusStats, error)
 }
 
 // Generate a function for getQuerySamples to read data from a static file
-func (c *mockClient) getQuerySamples(uint64, bool, bool) ([]querySample, error) {
+func (c *mockClient) getQuerySamples(uint64, bool) ([]querySample, error) {
 	var samples []querySample
 	file, err := os.Open(filepath.Join("testdata", "scraper", c.querySamplesFile+".txt"))
 	if err != nil {
@@ -810,37 +810,6 @@ func TestScrapeQuerySamplesNoExplain(t *testing.T) {
 	_, err := s.scrapeQuerySampleFunc(t.Context())
 	require.NoError(t, err)
 
-	assert.Equal(t, 0, mc.explainQueryCallCount,
-		"scrapeQuerySampleFunc must never call explainQuery")
-}
-
-// TestScrapeQuerySampleFuncFallbackVersion verifies that scrapeQuerySampleFunc
-// succeeds when detectedVersion.supportsUserVariablesByThread() is false (MySQL 5.6),
-// proving the no-user-vars flag path is exercised without error.
-func TestScrapeQuerySampleFuncFallbackVersion(t *testing.T) {
-	v56 := mustDBVersion(t, "5.6.51")
-	mc := &mockClient{
-		querySamplesFile:  "query_samples",
-		dbVersionOverride: &v56,
-	}
-	cfg := createDefaultConfig().(*Config)
-	cfg.Username = "otel"
-	cfg.Password = "otel"
-	cfg.AddrConfig = confignet.AddrConfig{Endpoint: "localhost:3306"}
-	cfg.LogsBuilderConfig.Events.DbServerQuerySample.Enabled = true
-
-	s := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](1), newTTLCache[string](100, 0))
-	s.sqlclient = mc
-	s.detectedVersion = mc.getDBVersion()
-
-	// Sanity-check: the version should NOT support user_variables_by_thread.
-	require.False(t, s.detectedVersion.supportsUserVariablesByThread(),
-		"MySQL 5.6 must not support user_variables_by_thread")
-
-	_, err := s.scrapeQuerySampleFunc(t.Context())
-	require.NoError(t, err, "scrapeQuerySampleFunc must not error on MySQL 5.6 fallback path")
-
-	// explainQuery is never called by the query-sample scraper regardless of version.
 	assert.Equal(t, 0, mc.explainQueryCallCount,
 		"scrapeQuerySampleFunc must never call explainQuery")
 }
