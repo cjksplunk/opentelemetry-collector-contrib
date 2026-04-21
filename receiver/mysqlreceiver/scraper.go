@@ -747,7 +747,6 @@ func (m *mySQLScraper) scrapeQuerySamples(_ context.Context, now pcommon.Timesta
 			addr, port, err := net.SplitHostPort(sample.processlistHost)
 			if err != nil {
 				m.logger.Error("Failed to parse processlistHost value", zap.Error(err))
-				errs.AddPartial(1, err)
 			} else {
 				clientAddress = addr
 				clientPort, _ = parseInt(port)
