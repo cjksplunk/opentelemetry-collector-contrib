@@ -7,7 +7,7 @@ note: Add MySQL <8 and MariaDB compatibility for query sample and top-query coll
 issues: [47302]
 
 subtext: |
-  Supported products and versions: MySQL 5.6, 5.7.x, 8.0+; MariaDB 10.x, 11.x.
+  Supported products and versions: MySQL 5.7.3+, 8.0+; MariaDB 10.5.2+, 11.x.
   See COMPATIBILITY.md in the receiver directory for a full version × feature matrix.
 
 change_logs: [user]

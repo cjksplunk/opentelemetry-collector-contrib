@@ -18,7 +18,7 @@ Query sample duration is resolved in order. The first tier that produces a value
 |---|---|---|
 | 1 | Exact `TIMER_WAIT` for completed waits | All supported versions |
 | 2 | PS timer approximation for in-progress waits | MySQL 5.7+ / 8.0+; **not used for MariaDB** — MariaDB's `statement.TIMER_WAIT` is updated only at yield points, not continuously, making it unreliable for in-progress statements |
-| 3 | `thread.processlist_time` integer-second fallback | MySQL 5.7+, all MariaDB 10.x |
+| 3 | `thread.processlist_time` integer-second fallback | MySQL 5.7+, all supported MariaDB versions |
 
 ## Version Detection
 
@@ -37,9 +37,10 @@ The following product/version/platform combinations have been validated against 
 
 | Product | Series | Exact Version | Platform | `supportsQuerySampleText` | `supportsProcesslist` | `supportsReplicaStatus` | Timer Wait Tiers | Date |
 |---|---|---|---|---|---|---|---|---|
-| MySQL | 8.0 | | AWS RDS | ✓ | ✓ | ✓ | 1, 2, 3 | |
-| MySQL | 5.7 | | AWS RDS | ✗ | ✗ | ✗ | 1, 2, 3 | |
-| MariaDB | 10.5 | | AWS RDS | ✗ | ✗ | ✗ | 1, 3 | |
+| MySQL | 8.4 | 8.4.7 | AWS RDS db.t3.micro | ✓ | ✓ | ✓ | 1, 2, 3 | 2026-04-21 |
+| MySQL | 5.7 | 5.7.44 | AWS RDS db.t3.micro | ✗ | ✗ | ✗ | 1, 2, 3 | 2026-04-21 |
+| MariaDB | 10.5 | 10.5.28 | AWS RDS db.t3.micro | ✗ | ✗ | ✗ | 1, 3 | 2026-04-21 |
+| MariaDB | 11.8 | 11.8.2 | AWS RDS db.t3.micro | ✗ | ✗ | ✗ | 1, 3 | 2026-04-21 |
 
 **Legend:**
 - ✓ = capability enabled
@@ -67,6 +68,6 @@ after each restart. The receiver user needs `UPDATE ON performance_schema.setup_
 |---|---|---|
 | MySQL 5.7 | Tier 1 or 2 | Tier 1 if wait has completed; Tier 2 (PS timer approximation) if wait is in progress |
 | MySQL 8.x | Tier 1 or 2 | Same as 5.7 |
-| MariaDB 10.x | Tier 1 or 3 | Tier 2 is not used — MariaDB `statement.TIMER_WAIT` is stale during active execution; falls through to integer-second `processlist_time` |
+| MariaDB (all versions) | Tier 1 or 3 | Tier 2 is not used — MariaDB `statement.TIMER_WAIT` is stale during active execution; falls through to integer-second `processlist_time` |
 
 See the Timer Wait Tiers section above for tier definitions.
