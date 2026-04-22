@@ -367,6 +367,56 @@ func TestScrapeTopQueryInterval(t *testing.T) {
 	})
 }
 
+func TestCacheAndDiff(t *testing.T) {
+	newScraper := func() *mySQLScraper {
+		cfg := createDefaultConfig().(*Config)
+		return newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](100), newTTLCache[string](0, time.Hour*24*365*10))
+	}
+
+	t.Run("first call returns not-cached and the value itself", func(t *testing.T) {
+		s := newScraper()
+		cached, diff := s.cacheAndDiff("schema", "digest", "col", 100)
+		assert.False(t, cached)
+		assert.Equal(t, int64(100), diff)
+	})
+
+	t.Run("second call with higher value returns diff", func(t *testing.T) {
+		s := newScraper()
+		s.cacheAndDiff("schema", "digest", "col", 100)
+		cached, diff := s.cacheAndDiff("schema", "digest", "col", 250)
+		assert.True(t, cached)
+		assert.Equal(t, int64(150), diff)
+	})
+
+	t.Run("second call with same value returns zero diff", func(t *testing.T) {
+		s := newScraper()
+		s.cacheAndDiff("schema", "digest", "col", 100)
+		cached, diff := s.cacheAndDiff("schema", "digest", "col", 100)
+		assert.True(t, cached)
+		assert.Equal(t, int64(0), diff)
+	})
+
+	t.Run("counter reset: val less than cached returns val as diff and refreshes cache", func(t *testing.T) {
+		s := newScraper()
+		s.cacheAndDiff("schema", "digest", "col", 1_000_000) // pre-reboot accumulation
+		cached, diff := s.cacheAndDiff("schema", "digest", "col", 500)
+		assert.True(t, cached)
+		assert.Equal(t, int64(500), diff, "post-reset value should be treated as full diff since reset")
+
+		// next call after reset should compute diff correctly from the refreshed cached value
+		cached2, diff2 := s.cacheAndDiff("schema", "digest", "col", 750)
+		assert.True(t, cached2)
+		assert.Equal(t, int64(250), diff2, "subsequent call after reset should diff against the refreshed cache entry")
+	})
+
+	t.Run("negative value returns not-cached and zero", func(t *testing.T) {
+		s := newScraper()
+		cached, diff := s.cacheAndDiff("schema", "digest", "col", -1)
+		assert.False(t, cached)
+		assert.Equal(t, int64(0), diff)
+	})
+}
+
 var _ client = (*mockClient)(nil)
 
 type mockClient struct {

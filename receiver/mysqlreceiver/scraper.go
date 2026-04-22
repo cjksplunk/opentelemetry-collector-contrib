@@ -879,6 +879,13 @@ func (m *mySQLScraper) cacheAndDiff(schemaName, digest, column string, val int64
 		return true, val - cached
 	}
 
+	// val < cached means the DB counter was reset (e.g. after a DB restart).
+	// Treat the current value as the full diff since the reset and refresh the cache.
+	if val < cached {
+		m.cache.Add(key, val)
+		return true, val
+	}
+
 	return true, 0
 }
 
