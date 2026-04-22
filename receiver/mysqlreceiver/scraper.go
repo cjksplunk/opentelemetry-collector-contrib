@@ -7,6 +7,7 @@ import (
 	"container/heap"
 	"context"
 	"errors"
+	"math"
 	"net"
 	"sort"
 	"strconv"
@@ -143,7 +144,7 @@ func (m *mySQLScraper) scrapeTopQueryFunc(_ context.Context) (plog.Logs, error) 
 
 	now := pcommon.NewTimestampFromTime(time.Now())
 
-	if m.lastExecutionTimestamp.Add(m.config.TopQueryCollection.CollectionInterval).After(now.AsTime()) {
+	if int(math.Ceil(time.Since(m.lastExecutionTimestamp).Seconds())) < int(m.config.TopQueryCollection.CollectionInterval.Seconds()) {
 		m.logger.Debug("Skipping top queries scrape, not enough time has passed since last execution")
 	} else {
 		m.scrapeTopQueries(now, errs)

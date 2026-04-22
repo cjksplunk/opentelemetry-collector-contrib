@@ -308,6 +308,65 @@ func TestScrapeQuerySamplesTraceparent(t *testing.T) {
 	})
 }
 
+func TestScrapeTopQueryInterval(t *testing.T) {
+	cfg := createDefaultConfig().(*Config)
+	cfg.Username = "otel"
+	cfg.Password = "otel"
+	cfg.AddrConfig = confignet.AddrConfig{Endpoint: "localhost:3306"}
+	cfg.TopQueryCollection.CollectionInterval = 60 * time.Second
+
+	mc := &mockClient{topQueriesFile: "top_queries"}
+
+	newScraper := func() *mySQLScraper {
+		s := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](100), newTTLCache[string](0, time.Hour*24*365*10))
+		s.sqlclient = mc
+		return s
+	}
+
+	t.Run("first call always runs regardless of lastExecutionTimestamp", func(t *testing.T) {
+		scraper := newScraper()
+		before := scraper.lastExecutionTimestamp
+
+		_, err := scraper.scrapeTopQueryFunc(t.Context())
+		require.NoError(t, err)
+		assert.True(t, scraper.lastExecutionTimestamp.After(before), "lastExecutionTimestamp must be updated on first call")
+	})
+
+	t.Run("second call within interval is skipped", func(t *testing.T) {
+		scraper := newScraper()
+		// Simulate a recent collection — just ran 10 seconds ago
+		recent := time.Now().Add(-10 * time.Second)
+		scraper.lastExecutionTimestamp = recent
+
+		_, err := scraper.scrapeTopQueryFunc(t.Context())
+		require.NoError(t, err)
+		assert.Equal(t, recent, scraper.lastExecutionTimestamp, "lastExecutionTimestamp must not change when interval has not elapsed")
+	})
+
+	t.Run("call after interval elapses runs again", func(t *testing.T) {
+		scraper := newScraper()
+		// Simulate last collection exactly at the interval boundary (60s ago)
+		past := time.Now().Add(-60 * time.Second)
+		scraper.lastExecutionTimestamp = past
+
+		_, err := scraper.scrapeTopQueryFunc(t.Context())
+		require.NoError(t, err)
+		assert.True(t, scraper.lastExecutionTimestamp.After(past), "lastExecutionTimestamp must be updated when interval has elapsed")
+	})
+
+	t.Run("call fires at interval boundary even when ticker arrives slightly early", func(t *testing.T) {
+		scraper := newScraper()
+		// Simulate ticker arriving ~1ms before the 60s mark — math.Ceil rounds 59.999s up to 60s,
+		// so this must still fire rather than waiting for the next 10s tick (which would be 70s total).
+		past := time.Now().Add(-60*time.Second + time.Millisecond)
+		scraper.lastExecutionTimestamp = past
+
+		_, err := scraper.scrapeTopQueryFunc(t.Context())
+		require.NoError(t, err)
+		assert.True(t, scraper.lastExecutionTimestamp.After(past), "ticker arriving 1ms early must still fire — math.Ceil rounds up to the interval boundary")
+	})
+}
+
 var _ client = (*mockClient)(nil)
 
 type mockClient struct {
