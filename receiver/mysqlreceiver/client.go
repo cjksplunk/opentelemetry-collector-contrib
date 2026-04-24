@@ -958,6 +958,8 @@ func (c *mySQLClient) getQuerySamples(limit uint64, supportsProcesslist bool) ([
 				dest = append(dest, &s.processlistUser)
 			case "client_address":
 				dest = append(dest, &s.processlistHost)
+			case "client_port":
+				dest = append(dest, &s.clientPort)
 			case "current_database":
 				dest = append(dest, &s.processlistDB)
 			case "session_command":
