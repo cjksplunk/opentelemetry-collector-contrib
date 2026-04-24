@@ -288,7 +288,7 @@ func TestScrapeQuerySamplesTraceparent(t *testing.T) {
 		assert.Equal(t, pcommon.SpanID{}, record.SpanID(), "SpanID must be zero when traceparent is invalid")
 	})
 
-	t.Run("bare IP processlistHost logs error but record is still emitted with empty address fields", func(t *testing.T) {
+	t.Run("bare IP processlistHost uses IP as address without logging an error", func(t *testing.T) {
 		core, observed := observer.New(zapcore.ErrorLevel)
 		scraper := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](100), newTTLCache[string](0, time.Hour*24*365*10))
 		scraper.logger = zap.New(core)
@@ -296,15 +296,51 @@ func TestScrapeQuerySamplesTraceparent(t *testing.T) {
 
 		result, err := scraper.scrapeQuerySampleFunc(t.Context())
 		require.NoError(t, err, "bare IP processlistHost must not cause a scrape error")
-		require.Equal(t, 1, observed.FilterMessage("Failed to parse processlistHost value").Len(), "expected one error log for bare IP processlistHost")
+		require.Equal(t, 0, observed.FilterMessage("Failed to parse processlistHost value").Len(), "bare IP must not log an error")
 		require.Equal(t, 1, result.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().Len(), "record must still be emitted")
 		record := result.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
+
 		addrVal, ok := record.Attributes().Get("client.address")
 		assert.True(t, ok)
-		assert.Empty(t, addrVal.Str(), "client.address must be empty when processlistHost has no port")
+		assert.Equal(t, "192.168.200.161", addrVal.Str(), "client.address must be set to bare IP")
+
 		portVal, ok := record.Attributes().Get("client.port")
 		assert.True(t, ok)
-		assert.Equal(t, int64(0), portVal.Int(), "client.port must be zero when processlistHost has no port")
+		assert.Equal(t, int64(0), portVal.Int(), "client.port must be zero when no port in processlistHost")
+
+		peerAddrVal, ok := record.Attributes().Get("network.peer.address")
+		assert.True(t, ok)
+		assert.Equal(t, "192.168.200.161", peerAddrVal.Str(), "network.peer.address must be set to bare IP")
+
+		peerPortVal, ok := record.Attributes().Get("network.peer.port")
+		assert.True(t, ok)
+		assert.Equal(t, int64(0), peerPortVal.Int(), "network.peer.port must be zero when no port in processlistHost")
+	})
+
+	t.Run("empty processlistHost produces empty address and zero port", func(t *testing.T) {
+		scraper := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](100), newTTLCache[string](0, time.Hour*24*365*10))
+		scraper.sqlclient = &mockClient{querySamplesFile: "query_samples_empty_host"}
+
+		result, err := scraper.scrapeQuerySampleFunc(t.Context())
+		require.NoError(t, err, "empty processlistHost must not cause a scrape error")
+		require.Equal(t, 1, result.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().Len(), "record must still be emitted")
+		record := result.ResourceLogs().At(0).ScopeLogs().At(0).LogRecords().At(0)
+
+		addrVal, ok := record.Attributes().Get("client.address")
+		assert.True(t, ok)
+		assert.Empty(t, addrVal.Str(), "client.address must be empty string when processlistHost is empty")
+
+		portVal, ok := record.Attributes().Get("client.port")
+		assert.True(t, ok)
+		assert.Equal(t, int64(0), portVal.Int(), "client.port must be zero when processlistHost is empty")
+
+		peerAddrVal, ok := record.Attributes().Get("network.peer.address")
+		assert.True(t, ok)
+		assert.Empty(t, peerAddrVal.Str(), "network.peer.address must be empty string when processlistHost is empty")
+
+		peerPortVal, ok := record.Attributes().Get("network.peer.port")
+		assert.True(t, ok)
+		assert.Equal(t, int64(0), peerPortVal.Int(), "network.peer.port must be zero when processlistHost is empty")
 	})
 }
 

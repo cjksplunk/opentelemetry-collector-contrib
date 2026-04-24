@@ -747,7 +747,9 @@ func (m *mySQLScraper) scrapeQuerySamples(_ context.Context, now pcommon.Timesta
 		if sample.processlistHost != "" {
 			addr, port, err := net.SplitHostPort(sample.processlistHost)
 			if err != nil {
-				m.logger.Error("Failed to parse processlistHost value", zap.Error(err))
+				// MySQL returns a bare IP (no port) when the client connected via Unix socket.
+				clientAddress = sample.processlistHost
+				networkPeerAddress = sample.processlistHost
 			} else {
 				clientAddress = addr
 				clientPort, _ = parseInt(port)
