@@ -966,6 +966,37 @@ func TestServiceInstanceIDEmittedWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestServiceInstanceIDNotEmittedWhenDisabled(t *testing.T) {
+	cfg := createDefaultConfig().(*Config)
+	cfg.Username = "otel"
+	cfg.Password = "otel"
+	cfg.AddrConfig = confignet.AddrConfig{Endpoint: "localhost:3306"}
+	cfg.LogsBuilderConfig.Events.DbServerQuerySample.Enabled = true
+	cfg.LogsBuilderConfig.Events.DbServerTopQuery.Enabled = true
+	// ServiceInstanceID.Enabled is false by default — do not set it
+
+	scraper := newMySQLScraper(receivertest.NewNopSettings(metadata.Type), cfg, newCache[int64](100), newTTLCache[string](0, time.Hour*24*365*10))
+	scraper.sqlclient = &mockClient{
+		querySamplesFile: "query_samples",
+		topQueriesFile:   "top_queries",
+	}
+	scraper.cacheAndDiff("mysql", "c16f24f908846019a741db580f6545a5933e9435a7cf1579c50794a6ca287739", "count_star", 1)
+	scraper.cacheAndDiff("mysql", "c16f24f908846019a741db580f6545a5933e9435a7cf1579c50794a6ca287739", "sum_timer_wait", 1)
+
+	for _, scrapeFunc := range []func() (plog.Logs, error){
+		func() (plog.Logs, error) { return scraper.scrapeQuerySampleFunc(t.Context()) },
+		func() (plog.Logs, error) { return scraper.scrapeTopQueryFunc(t.Context()) },
+	} {
+		logs, err := scrapeFunc()
+		require.NoError(t, err)
+		require.Equal(t, 1, logs.ResourceLogs().Len())
+		attrs := logs.ResourceLogs().At(0).Resource().Attributes()
+
+		_, ok := attrs.Get("service.instance.id")
+		assert.False(t, ok, "service.instance.id must not be present when disabled")
+	}
+}
+
 func (c *mockClient) explainQuery(digestText, sampleStatement, _, _ string, _ *zap.Logger) string {
 	c.explainQueryCallCount++
 	c.explainQueryCalls = append(c.explainQueryCalls, explainQueryCall{
